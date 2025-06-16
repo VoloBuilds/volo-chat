@@ -1,9 +1,9 @@
 import { MiddlewareHandler } from 'hono';
 import { verifyFirebaseToken } from '../lib/firebase-auth';
-import { getDatabase } from '../lib/db';
+import { getDatabase } from '../lib/db-cloudflare';
 import { eq } from 'drizzle-orm';
 import { User, users } from '../schema/users';
-import { getFirebaseProjectId, getDatabaseUrl } from '../lib/env';
+import { getFirebaseProjectId } from '../lib/env';
 
 declare module 'hono' {
   interface ContextVariableMap {
@@ -22,8 +22,7 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
     const firebaseProjectId = getFirebaseProjectId();
     const firebaseUser = await verifyFirebaseToken(token, firebaseProjectId);
 
-    const databaseUrl = getDatabaseUrl();
-    const db = await getDatabase(databaseUrl);
+    const db = await getDatabase();
 
     // Upsert: insert if not exists, do nothing if exists
     await db.insert(users)

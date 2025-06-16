@@ -15,6 +15,7 @@ build
 .env
 .env.*
 !.env.example
+server/wrangler.toml
 
 # Generated configuration files (created by CLI setup)
 ui/src/lib/firebase-config.json
@@ -30,6 +31,7 @@ server/.dev.vars
 *.njsproj
 *.sln
 *.sw?
+.devdocs/
 
 # Logs
 logs

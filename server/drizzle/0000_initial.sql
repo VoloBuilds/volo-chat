@@ -1,4 +1,8 @@
-CREATE TABLE IF NOT EXISTS "users" (
+-- Create app schema if it doesn't exist
+CREATE SCHEMA IF NOT EXISTS "app";
+
+-- Create users table
+CREATE TABLE IF NOT EXISTS "app"."users" (
   "id" text PRIMARY KEY,
   "email" text NOT NULL UNIQUE,
   "display_name" text,

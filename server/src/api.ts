@@ -3,29 +3,21 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { authMiddleware } from './middleware/auth';
-import { getDatabase, testDatabaseConnection } from './lib/db';
+import { getDatabase, testDatabaseConnection } from './lib/db-cloudflare';
 import { setEnvContext, clearEnvContext, getDatabaseUrl } from './lib/env';
-import { getEmbeddedConnectionString } from './lib/embedded-postgres';
-import * as schema from './schema/users';
+import * as schema from './schema';
+
+// Import route handlers
+import { models } from './routes/models';
+import { chats } from './routes/chats';
+import { fileRoutes } from './routes/files';
 
 const app = new Hono();
 
-// Check once if we're in Node.js environment
-const isNodeEnv = typeof process !== 'undefined' && process.env?.NODE_ENV !== undefined;
-
-// Set environment context once based on the runtime
-if (isNodeEnv) {
-  // In Node.js environment, use process.env
-  setEnvContext(process.env);
-}
-
 // Environment context middleware - only needed for Cloudflare Workers
 app.use('*', async (c, next) => {
-  // In Cloudflare Workers, set context from c.env (only if not already set for Node.js)
-  if (!isNodeEnv) {
-    setEnvContext(c.env);
-  }
-  
+  setEnvContext(c.env);
+
   await next();
   // No need to clear context - env vars are the same for all requests
 });
@@ -50,17 +42,17 @@ api.get('/hello', (c) => {
 // Database test route - public for testing
 api.get('/db-test', async (c) => {
   try {
-    // Use external DB URL if available, otherwise use embedded postgres connection
-    const dbUrl = getDatabaseUrl() || getEmbeddedConnectionString();
+    // Cloudflare Workers requires external database
+    const dbUrl = getDatabaseUrl();
     
     if (!dbUrl) {
       return c.json({
-        error: 'No database connection available',
+        error: 'DATABASE_URL is required for Cloudflare Workers',
         timestamp: new Date().toISOString(),
       }, 500);
     }
     
-    const db = await getDatabase(dbUrl);
+    const db = await getDatabase();
     const isHealthy = await testDatabaseConnection();
     
     if (!isHealthy) {
@@ -76,7 +68,7 @@ api.get('/db-test', async (c) => {
       message: 'Database connection successful!',
       users: result,
       connectionHealthy: isHealthy,
-      usingEmbedded: !getDatabaseUrl(),
+      environment: 'Cloudflare Workers',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
@@ -92,6 +84,12 @@ api.get('/db-test', async (c) => {
 // Protected routes - require authentication
 const protectedRoutes = new Hono();
 
+// Ensure environment context is set for protected routes
+protectedRoutes.use('*', async (c, next) => {
+  setEnvContext(c.env);
+  await next();
+});
+
 protectedRoutes.use('*', authMiddleware);
 
 protectedRoutes.get('/me', (c) => {
@@ -104,6 +102,24 @@ protectedRoutes.get('/me', (c) => {
 
 // Mount the protected routes under /protected
 api.route('/protected', protectedRoutes);
+
+// Mount chat API routes (public models endpoint, protected everything else)
+api.route('/models', models);
+
+// Protected chat routes
+const chatRoutes = new Hono();
+
+// Ensure environment context is set for chat routes
+chatRoutes.use('*', async (c, next) => {
+  setEnvContext(c.env);
+  await next();
+});
+
+chatRoutes.use('*', authMiddleware);
+chatRoutes.route('/chats', chats);
+chatRoutes.route('/files', fileRoutes);
+
+api.route('/', chatRoutes);
 
 // Mount the API router
 app.route('/api/v1', api);

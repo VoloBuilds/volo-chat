@@ -195,6 +195,13 @@ Set these in Cloudflare dashboards:
 **Worker Environment Variables:**
 - `DATABASE_URL` - Your database connection string
 - `FIREBASE_PROJECT_ID` - Firebase project ID
+- `R2_PUBLIC_URL` - Your R2 bucket public URL (for file hosting)
+
+**R2 Bucket Configuration:**
+- Create an R2 bucket in Cloudflare Dashboard
+- Configure public access for file serving
+- Update `wrangler.toml` with your bucket name
+- Set `R2_PUBLIC_URL` to your bucket's public URL
 
 **Pages Environment Variables (if needed):**
 - `VITE_API_URL` - Your deployed worker URL (optional, defaults work)

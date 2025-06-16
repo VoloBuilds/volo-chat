@@ -8,6 +8,7 @@ type EnvLike = Record<string, string | undefined>;
 let contextEnv: EnvLike | null = null;
 
 export function setEnvContext(env: any) {
+  console.log('Setting env context:', env ? 'provided' : 'null');
   contextEnv = env;
 }
 
@@ -16,7 +17,9 @@ export function clearEnvContext() {
 }
 
 function getEnvSource(): EnvLike {
-  return contextEnv || process.env;
+  const source = contextEnv || process.env;
+  console.log('Using env source:', contextEnv ? 'contextEnv' : 'process.env');
+  return source;
 }
 
 /**
@@ -24,7 +27,9 @@ function getEnvSource(): EnvLike {
  * Works in both Node.js and Cloudflare Workers environments
  */
 export function getEnv(key: string, defaultValue?: string): string | undefined {
-  const value = getEnvSource()[key];
+  const source = getEnvSource();
+  const value = source[key];
+  console.log(`getEnv(${key}): ${value ? '[PRESENT]' : '[MISSING]'} (source: ${contextEnv ? 'contextEnv' : 'process.env'})`);
   return value !== undefined ? value : defaultValue;
 }
 
@@ -56,12 +61,10 @@ export function getDatabaseUrl(): string | undefined {
 }
 
 /**
- * Check if DATABASE_URL points to local embedded postgres
+ * Check if DATABASE_URL is configured
  */
-export function isLocalEmbeddedPostgres(): boolean {
-  const dbUrl = getDatabaseUrl();
-  // Check if it's any localhost PostgreSQL connection (embedded postgres)
-  return dbUrl ? (dbUrl.includes('localhost:') && dbUrl.includes('postgres:password')) : false;
+export function isDatabaseConfigured(): boolean {
+  return !!getDatabaseUrl();
 }
 
 /**

@@ -3,18 +3,27 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { LoginForm } from '@/components/login-form';
 import { Navbar } from '@/components/navbar';
 import { AppSidebar } from '@/components/appSidebar';
-import { Home } from '@/pages/Home';
 import { Settings } from '@/pages/Settings';
-import { Page1 } from '@/pages/Page1';
-import { Page2 } from '@/pages/Page2';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Chat } from '@/pages/Chat';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import {
   SidebarProvider,
   SidebarInset,
 } from "@/components/ui/sidebar";
+import { useChatStore } from '@/stores/chatStore';
+import { useEffect } from 'react';
 
 function AppContent() {
   const { user, loading } = useAuth();
+  const { loadChats } = useChatStore();
+
+      // Load chats once when user is authenticated
+    useEffect(() => {
+      if (user) {
+        console.log('[APP] User authenticated, loading chats...');
+        loadChats(true); // Force load to bypass protection for now
+      }
+    }, [user]); // Remove loadChats from deps to prevent re-runs
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen"></div>;
@@ -34,9 +43,9 @@ function AppContent() {
             <SidebarInset className="flex-1">
               <main className="flex-1">
                 <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/page1" element={<Page1 />} />
-                  <Route path="/page2" element={<Page2 />} />
+                  <Route path="/" element={<Navigate to="/chat" replace />} />
+                  <Route path="/chat" element={<Chat />} />
+                  <Route path="/chat/:chatId" element={<Chat />} />
                   <Route path="/settings" element={<Settings />} />
                 </Routes>
               </main>

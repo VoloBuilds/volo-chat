@@ -1,0 +1,607 @@
+import { create } from 'zustand';
+import { AIModel, Chat, Message, Attachment } from '../types/chat';
+import { aiService } from '../services/aiService';
+import { api } from '../lib/serverComm';
+
+interface ChatState {
+  // Models
+  availableModels: AIModel[];
+  selectedModelId: string;
+  modelsLoaded: boolean;
+  
+  // Chats
+  chats: Chat[];
+  chatsLoaded: boolean;
+  activeChatId: string | null;
+  
+  // Messages
+  messages: Record<string, Message[]>;
+  streamingMessageId: string | null;
+  
+  // Caching for smooth UX
+  messageCache: Record<string, Message[]>;
+  loadingChatId: string | null; // Track which chat is currently loading
+  
+  // UI State
+  isSidebarOpen: boolean;
+  isLoading: boolean;
+  
+  // Actions
+  loadModels: () => Promise<void>;
+  selectModel: (modelId: string) => void;
+  createChat: (title?: string) => Promise<string>;
+  loadChats: (force?: boolean) => Promise<void>;
+  sendMessage: (content: string, attachments?: File[], existingBlobUrls?: Map<File, string>) => Promise<void>;
+  updateStreamingMessage: (content: string) => void;
+  setSidebarOpen: (open: boolean) => void;
+  setActiveChat: (id: string | null) => void;
+  switchToChat: (id: string) => Promise<void>; // New optimized switching method
+  preloadRecentChats: () => Promise<void>; // New method for background loading
+  updateChatTitle: (chatId: string, title: string) => Promise<void>;
+  generateChatTitle: (chatId: string, firstMessage: string) => Promise<void>;
+}
+
+// Default model preference - Gemini Flash
+const DEFAULT_MODEL_PREFERENCES = [
+  'gemini-1.5-flash',
+  'gpt-4o-mini',
+  'claude-3-5-haiku',
+  'gpt-4o',
+  'claude-3-5-sonnet',
+  'gemini-1.5-pro'
+];
+
+// Utility functions to handle date parsing
+const parseDate = (dateValue: string | Date): Date => {
+  return typeof dateValue === 'string' ? new Date(dateValue) : dateValue;
+};
+
+const parseChat = (chat: any): Chat => ({
+  ...chat,
+  createdAt: parseDate(chat.createdAt),
+  updatedAt: parseDate(chat.updatedAt),
+});
+
+const parseMessage = (msg: any): Message => ({
+  ...msg,
+  createdAt: parseDate(msg.createdAt),
+});
+
+export const useChatStore = create<ChatState>((set, get) => ({
+  // Initial state
+  availableModels: [],
+  selectedModelId: '',
+  chats: [],
+  chatsLoaded: false,
+  activeChatId: null,
+  messages: {},
+  streamingMessageId: null,
+  isSidebarOpen: true,
+  isLoading: false,
+  modelsLoaded: false,
+  messageCache: {},
+  loadingChatId: null,
+
+  // Actions
+  loadModels: async () => {
+    const { modelsLoaded, isLoading } = get();
+    
+    // Prevent multiple simultaneous calls
+    if (modelsLoaded || isLoading) {
+      return;
+    }
+    
+    try {
+      console.log('Loading models...');
+      set({ isLoading: true });
+      const models = await aiService.getAvailableModels();
+      console.log('Models loaded:', models);
+      
+      // Find the best default model based on preferences
+      let defaultModelId = '';
+      for (const preferredModel of DEFAULT_MODEL_PREFERENCES) {
+        const foundModel = models.find(m => m.id.includes(preferredModel) && m.isAvailable);
+        if (foundModel) {
+          defaultModelId = foundModel.id;
+          console.log('Selected default model:', defaultModelId);
+          break;
+        }
+      }
+      
+      // Fallback to first available model if no preferred model found
+      if (!defaultModelId && models.length > 0) {
+        const availableModel = models.find(m => m.isAvailable);
+        defaultModelId = availableModel ? availableModel.id : models[0].id;
+        console.log('Using fallback default model:', defaultModelId);
+      }
+      
+      set({ 
+        availableModels: models,
+        selectedModelId: defaultModelId,
+        modelsLoaded: true
+      });
+      
+      console.log('Model loading complete. Available models:', models.length, 'Selected:', defaultModelId);
+    } catch (error) {
+      console.error('Failed to load models:', error);
+      set({ availableModels: [], selectedModelId: '', modelsLoaded: true });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  selectModel: (modelId: string) => {
+    set({ selectedModelId: modelId });
+  },
+
+  createChat: async (title?: string) => {
+    try {
+      const { selectedModelId, availableModels } = get();
+      
+      // If no model is selected yet, try to use a default one
+      let modelIdToUse = selectedModelId;
+      
+      if (!modelIdToUse) {
+        // If models are loaded, find a default
+        if (availableModels.length > 0) {
+          for (const preferredModel of DEFAULT_MODEL_PREFERENCES) {
+            const foundModel = availableModels.find(m => m.id.includes(preferredModel) && m.isAvailable);
+            if (foundModel) {
+              modelIdToUse = foundModel.id;
+              // Update the selected model for future use
+              set({ selectedModelId: modelIdToUse });
+              break;
+            }
+          }
+          
+          // Fallback to first available model
+          if (!modelIdToUse) {
+            const availableModel = availableModels.find(m => m.isAvailable);
+            modelIdToUse = availableModel ? availableModel.id : availableModels[0].id;
+            set({ selectedModelId: modelIdToUse });
+          }
+        } else {
+          // Models haven't loaded yet, use a reasonable default
+          modelIdToUse = 'gemini-1.5-flash';
+          set({ selectedModelId: modelIdToUse });
+        }
+      }
+
+      const chat = await api.createChat({
+        title: title || 'New Chat',
+        modelId: modelIdToUse,
+      });
+
+      const parsedChat = parseChat(chat);
+      
+      set(state => ({
+        chats: [parsedChat, ...state.chats],
+        activeChatId: parsedChat.id,
+        messages: {
+          ...state.messages,
+          [parsedChat.id]: []
+        }
+      }));
+
+      return parsedChat.id;
+    } catch (error) {
+      console.error('Failed to create chat:', error);
+      throw error;
+    }
+  },
+
+  loadChats: async (force = false) => {
+    const { chatsLoaded, isLoading, preloadRecentChats } = get();
+    
+    // Prevent multiple simultaneous calls (unless forced)
+    if (!force && (chatsLoaded || isLoading)) {
+      console.log('[CHAT-STORE] loadChats skipped:', { chatsLoaded, isLoading });
+      return;
+    }
+    
+    try {
+      console.log('Loading chats...');
+      set({ isLoading: true });
+      const chats = await api.getChats();
+      const parsedChats = chats.map(parseChat);
+      set({ 
+        chats: parsedChats,
+        chatsLoaded: true
+      });
+      console.log(`Chats loaded: ${parsedChats.length} chats`);
+      
+      // Start preloading recent chats in the background
+      setTimeout(() => {
+        preloadRecentChats().catch(error => {
+          console.warn('[CHAT-STORE] Background preloading failed:', error);
+        });
+      }, 500); // Small delay to let the UI settle
+      
+    } catch (error) {
+      console.error('Failed to load chats:', error);
+      set({ 
+        chats: [],
+        chatsLoaded: true
+      });
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  sendMessage: async (content: string, attachments?: File[], existingBlobUrls?: Map<File, string>) => {
+    const { activeChatId, selectedModelId } = get();
+    
+    console.log('[CHAT-STORE] sendMessage called:', {
+      chatId: activeChatId,
+      modelId: selectedModelId,
+      contentLength: content.length,
+      attachmentsCount: attachments?.length || 0,
+      existingBlobUrlsCount: existingBlobUrls?.size || 0
+    });
+    
+    if (!activeChatId) {
+      throw new Error('No active chat');
+    }
+
+    try {
+      // 1. CREATE STABLE OPTIMISTIC ATTACHMENTS (reuse existing blob URLs)
+      let optimisticAttachments: Attachment[] | undefined;
+      if (attachments && attachments.length > 0) {
+        optimisticAttachments = attachments.map((file) => {
+          const stableId = `stable-${crypto.randomUUID()}`; // Use "stable" prefix for consistency
+          const existingBlobUrl = existingBlobUrls?.get(file);
+          
+          return {
+            id: stableId,
+            filename: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            status: 'uploading' as const,
+            file,
+            previewUrl: existingBlobUrl || URL.createObjectURL(file), // Reuse or create blob URL
+          };
+        });
+        
+        console.log('[CHAT-STORE] Created optimistic attachments:', optimisticAttachments.map(att => ({
+          id: att.id,
+          filename: att.filename,
+          hasPreviewUrl: !!att.previewUrl,
+          reusingBlobUrl: !!existingBlobUrls?.has(att.file!)
+        })));
+      }
+
+      // 2. CREATE OPTIMISTIC MESSAGES IMMEDIATELY 
+      const tempUserMessageId = 'temp-user-' + crypto.randomUUID();
+      const tempAssistantMessageId = 'temp-assistant-' + crypto.randomUUID();
+
+      const tempUserMessage: Message = {
+        id: tempUserMessageId,
+        chatId: activeChatId,
+        role: 'user',
+        content,
+        attachments: optimisticAttachments,
+        createdAt: new Date(),
+        isOptimistic: true,
+      };
+
+      const tempAssistantMessage: Message = {
+        id: tempAssistantMessageId,
+        chatId: activeChatId,
+        role: 'assistant',
+        content: '',
+        modelId: selectedModelId,
+        createdAt: new Date(),
+        isStreaming: true,
+        isOptimistic: true,
+      };
+
+      // 3. SHOW MESSAGES IMMEDIATELY 
+      set(state => ({
+        messages: {
+          ...state.messages,
+          [activeChatId]: [
+            ...(state.messages[activeChatId] || []),
+            tempUserMessage,
+            tempAssistantMessage
+          ]
+        },
+        streamingMessageId: tempAssistantMessageId
+      }));
+
+      console.log('[CHAT-STORE] Optimistic messages created immediately');
+
+      // 4. UPLOAD FILES IN BACKGROUND (without changing attachment objects)
+      let uploadedAttachments: Attachment[] = [];
+      if (attachments && attachments.length > 0) {
+        console.log('[CHAT-STORE] Starting background uploads');
+        
+        const uploadPromises = attachments.map(async (file, index) => {
+          try {
+            const uploaded = await aiService.uploadFile(file);
+            return { index, uploaded };
+          } catch (error) {
+            console.error('[CHAT-STORE] File upload failed:', error);
+            return { index, error };
+          }
+        });
+
+        const results = await Promise.allSettled(uploadPromises);
+        
+        // 5. UPDATE ATTACHMENT STATUS IN PLACE (preserve object identity)
+        const updatedAttachments = optimisticAttachments?.map((optimisticAtt, index) => {
+          const result = results[index];
+          if (result.status === 'fulfilled' && result.value && 'uploaded' in result.value && result.value.uploaded) {
+            // SUCCESS: Update with uploaded data but keep same object structure
+            uploadedAttachments.push(result.value.uploaded);
+            
+            // Clean up the blob URL since upload is complete
+            if (optimisticAtt.previewUrl && optimisticAtt.previewUrl.startsWith('blob:')) {
+              URL.revokeObjectURL(optimisticAtt.previewUrl);
+            }
+            
+            return {
+              ...optimisticAtt, // Keep same base object
+              id: result.value.uploaded.id, // Update to real ID
+              status: 'uploaded' as const,
+              url: result.value.uploaded.url, // Add server URL if available
+              previewUrl: undefined, // Remove blob URL since upload is complete
+            };
+          } else {
+            // ERROR: Mark as failed but keep preview for retry
+            return {
+              ...optimisticAtt,
+              status: 'error' as const
+            };
+          }
+        });
+
+        // Update message with new attachment status (minimal state change)
+        set(state => ({
+          messages: {
+            ...state.messages,
+            [activeChatId]: state.messages[activeChatId].map(msg =>
+              msg.id === tempUserMessageId
+                ? { ...msg, attachments: updatedAttachments }
+                : msg
+            )
+          }
+        }));
+
+        // Commit files to R2 for persistence
+        if (uploadedAttachments.length > 0) {
+          const fileIds = uploadedAttachments.map(att => att.id);
+          console.log('[CHAT-STORE] Committing files to R2:', fileIds);
+          try {
+            await aiService.commitFilesToR2(fileIds);
+          } catch (error) {
+            console.warn('[CHAT-STORE] R2 commit failed, continuing:', error);
+          }
+        }
+      }
+
+      console.log('[CHAT-STORE] Starting AI stream');
+
+      // 6. STREAM AI RESPONSE
+      let fullContent = '';
+      for await (const chunk of aiService.streamMessage(
+        activeChatId, 
+        content, 
+        selectedModelId, 
+        uploadedAttachments.length > 0 ? uploadedAttachments : undefined
+      )) {
+        fullContent += chunk;
+        
+        set(state => ({
+          messages: {
+            ...state.messages,
+            [activeChatId]: state.messages[activeChatId].map(msg =>
+              msg.id === tempAssistantMessageId
+                ? { ...msg, content: fullContent }
+                : msg
+            )
+          }
+        }));
+      }
+
+      // 7. FINALIZE: Mark messages as non-optimistic
+      set(state => ({
+        messages: {
+          ...state.messages,
+          [activeChatId]: state.messages[activeChatId].map(msg =>
+            msg.id === tempUserMessageId || msg.id === tempAssistantMessageId
+              ? { ...msg, isOptimistic: false, isStreaming: false }
+              : msg
+          )
+        },
+        streamingMessageId: null
+      }));
+
+      console.log('[CHAT-STORE] Message flow completed successfully');
+
+      // Generate chat title if this is the first exchange
+      const { generateChatTitle, chats } = get();
+      const chat = chats.find(c => c.id === activeChatId);
+      const currentMessages = get().messages[activeChatId] || [];
+      
+      if (chat && currentMessages.length === 2 && chat.title === 'New Chat') {
+        try {
+          await generateChatTitle(activeChatId, content);
+        } catch (error) {
+          console.warn('Failed to generate chat title:', error);
+        }
+      }
+
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      
+      // Remove any optimistic messages on error
+      set(state => ({
+        messages: {
+          ...state.messages,
+          [activeChatId]: state.messages[activeChatId].filter(
+            msg => !msg.isOptimistic
+          )
+        },
+        streamingMessageId: null
+      }));
+      throw error;
+    }
+  },
+
+  updateStreamingMessage: (content: string) => {
+    const { streamingMessageId, activeChatId } = get();
+    if (!streamingMessageId || !activeChatId) return;
+
+    set(state => ({
+      messages: {
+        ...state.messages,
+        [activeChatId]: state.messages[activeChatId].map(msg =>
+          msg.id === streamingMessageId
+            ? { ...msg, content }
+            : msg
+        )
+      }
+    }));
+  },
+
+  setSidebarOpen: (open: boolean) => {
+    set({ isSidebarOpen: open });
+  },
+
+  setActiveChat: (id: string | null) => {
+    set({ activeChatId: id });
+  },
+
+  switchToChat: async (id: string) => {
+    const { messages, messageCache, loadingChatId } = get();
+    
+    // If already loading this chat, don't start another load
+    if (loadingChatId === id) {
+      console.log('[CHAT-STORE] switchToChat: already loading', id);
+      return;
+    }
+    
+    try {
+      console.log('[CHAT-STORE] switchToChat called:', id);
+      
+      // 1. Immediately switch to the chat for responsiveness
+      set({ activeChatId: id });
+      
+      // 2. Check if messages are already loaded or cached
+      if (messages[id] || messageCache[id]) {
+        console.log('[CHAT-STORE] Using cached messages for chat:', id);
+        if (messageCache[id] && !messages[id]) {
+          // Restore from cache
+          set(state => ({
+            messages: {
+              ...state.messages,
+              [id]: state.messageCache[id]
+            }
+          }));
+        }
+        return;
+      }
+      
+      // 3. Load messages if not cached
+      set({ loadingChatId: id });
+      console.log('[CHAT-STORE] Loading messages for chat:', id);
+      
+      const { messages: chatMessages } = await api.getChat(id);
+      const parsedMessages = chatMessages.map(parseMessage);
+      
+      // 4. Update messages and cache
+      set(state => ({
+        messages: {
+          ...state.messages,
+          [id]: parsedMessages
+        },
+        messageCache: {
+          ...state.messageCache,
+          [id]: parsedMessages
+        },
+        loadingChatId: null
+      }));
+      
+      console.log(`[CHAT-STORE] Loaded ${parsedMessages.length} messages for chat:`, id);
+      
+    } catch (error) {
+      console.error('[CHAT-STORE] Failed to switch to chat:', error);
+      set({ loadingChatId: null });
+      throw error;
+    }
+  },
+
+  preloadRecentChats: async () => {
+    const { chats, messageCache } = get();
+    
+    // Get the 3 most recent chats that aren't already cached
+    const recentChats = chats
+      .slice(0, 3)
+      .filter(chat => !messageCache[chat.id]);
+    
+    if (recentChats.length === 0) {
+      console.log('[CHAT-STORE] No recent chats to preload');
+      return;
+    }
+    
+    console.log(`[CHAT-STORE] Preloading ${recentChats.length} recent chats`);
+    
+    // Load messages for recent chats in parallel
+    const loadPromises = recentChats.map(async (chat) => {
+      try {
+        const { messages: chatMessages } = await api.getChat(chat.id);
+        const parsedMessages = chatMessages.map(parseMessage);
+        
+        // Cache the messages (but don't activate the chat)
+        set(state => ({
+          messageCache: {
+            ...state.messageCache,
+            [chat.id]: parsedMessages
+          }
+        }));
+        
+        console.log(`[CHAT-STORE] Preloaded ${parsedMessages.length} messages for chat:`, chat.id);
+      } catch (error) {
+        console.warn(`[CHAT-STORE] Failed to preload chat ${chat.id}:`, error);
+      }
+    });
+    
+    await Promise.allSettled(loadPromises);
+    console.log('[CHAT-STORE] Preloading complete');
+  },
+
+  updateChatTitle: async (chatId: string, title: string) => {
+    try {
+      const updatedChat = await api.updateChatTitle(chatId, title);
+      const parsedChat = parseChat(updatedChat);
+      
+      set(state => ({
+        chats: state.chats.map(chat =>
+          chat.id === chatId ? parsedChat : chat
+        )
+      }));
+    } catch (error) {
+      console.error('Failed to update chat title:', error);
+      throw error;
+    }
+  },
+
+  generateChatTitle: async (chatId: string, firstMessage: string) => {
+    try {
+      const { selectedModelId } = get();
+      const result = await api.generateTitle({
+        chatId,
+        content: firstMessage,
+        modelId: selectedModelId || 'gemini-1.5-flash'
+      });
+      
+      // Update the chat title
+      await get().updateChatTitle(chatId, result.title);
+      
+      console.log('[CHAT-STORE] Generated title:', result.title);
+    } catch (error) {
+      console.error('Failed to generate chat title:', error);
+      throw error;
+    }
+  },
+})); 

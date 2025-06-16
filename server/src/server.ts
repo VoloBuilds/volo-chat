@@ -1,8 +1,11 @@
 import 'dotenv/config';
 import { serve } from '@hono/node-server';
 import app from './api';
-import { getEnv, getDatabaseUrl, isLocalEmbeddedPostgres } from './lib/env';
-import { startEmbeddedPostgres, stopEmbeddedPostgres } from './lib/embedded-postgres';
+import { getEnv, getDatabaseUrl } from './lib/env';
+
+// NOTE: This server.ts is for Node.js development only
+// For Cloudflare Workers deployment, use `wrangler dev` or `wrangler deploy`
+// which uses src/index.ts as the entry point
 
 // Parse CLI arguments
 const parseCliArgs = () => {
@@ -16,34 +19,18 @@ const parseCliArgs = () => {
 
 const { port } = parseCliArgs();
 
-// Extract PostgreSQL port from DATABASE_URL if it's a local embedded postgres connection
-const getPostgresPortFromDatabaseUrl = (): number => {
-  const dbUrl = getDatabaseUrl();
-  if (dbUrl && dbUrl.includes('localhost:')) {
-    const match = dbUrl.match(/localhost:(\d+)/);
-    if (match) {
-      return parseInt(match[1]);
-    }
-  }
-  return 5433; // fallback default
-};
-
 const startServer = async () => {
-  // Start embedded PostgreSQL if no external database URL is provided OR if DATABASE_URL points to local embedded postgres
-  if (!getDatabaseUrl() || isLocalEmbeddedPostgres()) {
-    try {
-      const postgresPort = getPostgresPortFromDatabaseUrl();
-      console.log(`🚀 Starting Node.js server on port ${port}`);
-      console.log(`🗄️ Starting embedded PostgreSQL on port ${postgresPort}`);
-      await startEmbeddedPostgres(postgresPort);
-    } catch (error) {
-      console.error('❌ Failed to start embedded PostgreSQL:', error);
-      process.exit(1);
-    }
-  } else {
-    console.log(`🚀 Starting Node.js server on port ${port}`);
-    console.log('🔗 Using external database connection');
+  const dbUrl = getDatabaseUrl();
+  
+  if (!dbUrl) {
+    console.error('❌ DATABASE_URL is required. Please set it in your .env file');
+    console.log('💡 For Cloudflare Workers deployment, use: wrangler dev');
+    process.exit(1);
   }
+
+  console.log(`🚀 Starting Node.js development server on port ${port}`);
+  console.log('🔗 Using external database connection');
+  console.log('💡 For Cloudflare Workers deployment, use: wrangler dev');
 
   serve({
     fetch: app.fetch,
@@ -54,7 +41,6 @@ const startServer = async () => {
 // Graceful shutdown
 const shutdown = async () => {
   console.log('🛑 Shutting down server...');
-  await stopEmbeddedPostgres();
   process.exit(0);
 };
 

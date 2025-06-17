@@ -12,7 +12,6 @@ interface ChatState {
   // Chats
   chats: Chat[];
   chatsLoaded: boolean;
-  activeChatId: string | null;
   
   // Messages
   messages: Record<string, Message[]>;
@@ -31,10 +30,9 @@ interface ChatState {
   selectModel: (modelId: string) => void;
   createChat: (title?: string) => Promise<string>;
   loadChats: (force?: boolean) => Promise<void>;
-  sendMessage: (content: string, attachments?: File[], existingBlobUrls?: Map<File, string>) => Promise<void>;
+  sendMessage: (chatId: string, content: string, attachments?: File[], existingBlobUrls?: Map<File, string>) => Promise<void>;
   updateStreamingMessage: (content: string) => void;
   setSidebarOpen: (open: boolean) => void;
-  setActiveChat: (id: string | null) => void;
   switchToChat: (id: string) => Promise<void>; // New optimized switching method
   preloadRecentChats: () => Promise<void>; // New method for background loading
   updateChatTitle: (chatId: string, title: string) => Promise<void>;
@@ -73,7 +71,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   selectedModelId: '',
   chats: [],
   chatsLoaded: false,
-  activeChatId: null,
   messages: {},
   streamingMessageId: null,
   isSidebarOpen: true,
@@ -176,7 +173,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       
       set(state => ({
         chats: [parsedChat, ...state.chats],
-        activeChatId: parsedChat.id,
         messages: {
           ...state.messages,
           [parsedChat.id]: []
@@ -228,19 +224,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  sendMessage: async (content: string, attachments?: File[], existingBlobUrls?: Map<File, string>) => {
-    const { activeChatId, selectedModelId } = get();
+  sendMessage: async (chatId: string, content: string, attachments?: File[], existingBlobUrls?: Map<File, string>) => {
+    const { selectedModelId } = get();
     
     console.log('[CHAT-STORE] sendMessage called:', {
-      chatId: activeChatId,
+      chatId,
       modelId: selectedModelId,
       contentLength: content.length,
       attachmentsCount: attachments?.length || 0,
       existingBlobUrlsCount: existingBlobUrls?.size || 0
     });
     
-    if (!activeChatId) {
-      throw new Error('No active chat');
+    if (!chatId) {
+      throw new Error('No chatId provided');
     }
 
     try {
@@ -276,7 +272,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       const tempUserMessage: Message = {
         id: tempUserMessageId,
-        chatId: activeChatId,
+        chatId,
         role: 'user',
         content,
         attachments: optimisticAttachments,
@@ -286,7 +282,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       const tempAssistantMessage: Message = {
         id: tempAssistantMessageId,
-        chatId: activeChatId,
+        chatId,
         role: 'assistant',
         content: '',
         modelId: selectedModelId,
@@ -299,8 +295,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set(state => ({
         messages: {
           ...state.messages,
-          [activeChatId]: [
-            ...(state.messages[activeChatId] || []),
+          [chatId]: [
+            ...(state.messages[chatId] || []),
             tempUserMessage,
             tempAssistantMessage
           ]
@@ -359,7 +355,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set(state => ({
           messages: {
             ...state.messages,
-            [activeChatId]: state.messages[activeChatId].map(msg =>
+            [chatId]: state.messages[chatId].map(msg =>
               msg.id === tempUserMessageId
                 ? { ...msg, attachments: updatedAttachments }
                 : msg
@@ -383,31 +379,66 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // 6. STREAM AI RESPONSE
       let fullContent = '';
+      let updateTimeout: NodeJS.Timeout | null = null;
+      let pendingUpdate = false;
+      let chunkCount = 0;
+      
+      const throttledUpdate = (content: string) => {
+        if (pendingUpdate) return;
+        
+        pendingUpdate = true;
+        if (updateTimeout) clearTimeout(updateTimeout);
+        
+        updateTimeout = setTimeout(() => {
+          set(state => ({
+            messages: {
+              ...state.messages,
+              [chatId]: state.messages[chatId].map(msg =>
+                msg.id === tempAssistantMessageId
+                  ? { ...msg, content }
+                  : msg
+              )
+            }
+          }));
+          pendingUpdate = false;
+        }, 50); // Update UI at most every 50ms
+      };
+      
       for await (const chunk of aiService.streamMessage(
-        activeChatId, 
+        chatId, 
         content, 
         selectedModelId, 
         uploadedAttachments.length > 0 ? uploadedAttachments : undefined
       )) {
         fullContent += chunk;
+        chunkCount++;
         
-        set(state => ({
-          messages: {
-            ...state.messages,
-            [activeChatId]: state.messages[activeChatId].map(msg =>
-              msg.id === tempAssistantMessageId
-                ? { ...msg, content: fullContent }
-                : msg
-            )
-          }
-        }));
+        // Use throttled update instead of immediate update
+        throttledUpdate(fullContent);
       }
+      
+      // Ensure final update is applied
+      if (updateTimeout) {
+        clearTimeout(updateTimeout);
+      }
+      
+      // Apply final content update
+      set(state => ({
+        messages: {
+          ...state.messages,
+          [chatId]: state.messages[chatId].map(msg =>
+            msg.id === tempAssistantMessageId
+              ? { ...msg, content: fullContent }
+              : msg
+          )
+        }
+      }));
 
       // 7. FINALIZE: Mark messages as non-optimistic
       set(state => ({
         messages: {
           ...state.messages,
-          [activeChatId]: state.messages[activeChatId].map(msg =>
+          [chatId]: state.messages[chatId].map(msg =>
             msg.id === tempUserMessageId || msg.id === tempAssistantMessageId
               ? { ...msg, isOptimistic: false, isStreaming: false }
               : msg
@@ -420,12 +451,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
       // Generate chat title if this is the first exchange
       const { generateChatTitle, chats } = get();
-      const chat = chats.find(c => c.id === activeChatId);
-      const currentMessages = get().messages[activeChatId] || [];
+      const chat = chats.find(c => c.id === chatId);
+      const currentMessages = get().messages[chatId] || [];
       
       if (chat && currentMessages.length === 2 && chat.title === 'New Chat') {
         try {
-          await generateChatTitle(activeChatId, content);
+          await generateChatTitle(chatId, content);
         } catch (error) {
           console.warn('Failed to generate chat title:', error);
         }
@@ -438,7 +469,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set(state => ({
         messages: {
           ...state.messages,
-          [activeChatId]: state.messages[activeChatId].filter(
+          [chatId]: state.messages[chatId].filter(
             msg => !msg.isOptimistic
           )
         },
@@ -449,13 +480,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   updateStreamingMessage: (content: string) => {
-    const { streamingMessageId, activeChatId } = get();
-    if (!streamingMessageId || !activeChatId) return;
+    const { streamingMessageId, messages } = get();
+    if (!streamingMessageId) return;
+
+    // Find which chat has the streaming message
+    const chatId = Object.keys(messages).find(cId => 
+      messages[cId].some(msg => msg.id === streamingMessageId)
+    );
+    
+    if (!chatId) return;
 
     set(state => ({
       messages: {
         ...state.messages,
-        [activeChatId]: state.messages[activeChatId].map(msg =>
+        [chatId]: state.messages[chatId].map(msg =>
           msg.id === streamingMessageId
             ? { ...msg, content }
             : msg
@@ -466,10 +504,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setSidebarOpen: (open: boolean) => {
     set({ isSidebarOpen: open });
-  },
-
-  setActiveChat: (id: string | null) => {
-    set({ activeChatId: id });
   },
 
   switchToChat: async (id: string) => {
@@ -484,32 +518,29 @@ export const useChatStore = create<ChatState>((set, get) => ({
     try {
       console.log('[CHAT-STORE] switchToChat called:', id);
       
-      // 1. Immediately switch to the chat for responsiveness
-      set({ activeChatId: id });
-      
-      // 2. Check if messages are already loaded or cached
-      if (messages[id] || messageCache[id]) {
-        console.log('[CHAT-STORE] Using cached messages for chat:', id);
-        if (messageCache[id] && !messages[id]) {
-          // Restore from cache
-          set(state => ({
-            messages: {
-              ...state.messages,
-              [id]: state.messageCache[id]
-            }
-          }));
+              // 1. Check if messages are already loaded or cached
+        if (messages[id] || messageCache[id]) {
+          console.log('[CHAT-STORE] Using cached messages for chat:', id);
+          if (messageCache[id] && !messages[id]) {
+            // Restore from cache
+            set(state => ({
+              messages: {
+                ...state.messages,
+                [id]: state.messageCache[id]
+              }
+            }));
+          }
+          return;
         }
-        return;
-      }
-      
-      // 3. Load messages if not cached
-      set({ loadingChatId: id });
-      console.log('[CHAT-STORE] Loading messages for chat:', id);
-      
-      const { messages: chatMessages } = await api.getChat(id);
-      const parsedMessages = chatMessages.map(parseMessage);
-      
-      // 4. Update messages and cache
+        
+        // 2. Load messages if not cached
+        set({ loadingChatId: id });
+        console.log('[CHAT-STORE] Loading messages for chat:', id);
+        
+        const { messages: chatMessages } = await api.getChat(id);
+        const parsedMessages = chatMessages.map(parseMessage);
+        
+        // 3. Update messages and cache
       set(state => ({
         messages: {
           ...state.messages,

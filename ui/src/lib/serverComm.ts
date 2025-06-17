@@ -306,11 +306,11 @@ export function streamChatResponse(data: {
                             if (eventData.chunk) {
                               chunkCount++;
                               chunks.push(eventData.chunk);
-                              debugStreaming('Chunk received', { 
-                                chunkNumber: chunkCount, 
-                                chunkLength: eventData.chunk.length,
-                                totalChunks: chunks.length 
-                              });
+                              // debugStreaming('Chunk received', { 
+                              //   chunkNumber: chunkCount, 
+                              //   chunkLength: eventData.chunk.length,
+                              //   totalChunks: chunks.length 
+                              // });
                             }
                             break;
                             

@@ -1,7 +1,7 @@
 export interface AIModel {
   id: string;
   name: string;
-  provider: 'openai' | 'anthropic' | 'google' | 'deepseek';
+  provider: 'openrouter' | 'deepseek';
   description: string;
   contextWindow: number;
   pricing: {
@@ -10,6 +10,7 @@ export interface AIModel {
   };
   capabilities: string[];
   isAvailable: boolean;
+  originalProvider?: string; // Track underlying provider when using OpenRouter
 }
 
 export interface ChatMessage {
@@ -20,4 +21,10 @@ export interface ChatMessage {
     data: string;
     mimeType?: string;
   }>;
+}
+
+export interface ProviderError extends Error {
+  provider: string;
+  retryable: boolean;
+  statusCode?: number;
 } 

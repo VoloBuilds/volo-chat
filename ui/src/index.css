@@ -41,6 +41,9 @@
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.705 0.015 286.067);
+  /* Scrollbar (light mode) */
+  --scrollbar-thumb: #c1c1c1;
+  --scrollbar-thumb-hover: #9e9e9e;
 }
 
 .dark {
@@ -75,6 +78,9 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
+  /* Scrollbar (dark mode) */
+  --scrollbar-thumb: #424242;
+  --scrollbar-thumb-hover: #585858;
 }
 
 /* Smooth theme transitions - only on specific elements that need it */
@@ -133,9 +139,11 @@ button {
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
   }
   body {
     @apply bg-background text-foreground;
+    font-size: 16px;
   }
 }
 

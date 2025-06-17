@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { 
-  Settings, 
   MessageSquare,
   Plus,
   Search,
   Loader2,
+  PanelLeftClose,
 } from "lucide-react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useChat } from '@/hooks/useChat';
+import { useCurrentChat } from '@/hooks/useCurrentChat';
 import { useChatStore } from '@/stores/chatStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,25 +17,27 @@ import { isToday, isYesterday } from 'date-fns';
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
-  SidebarMenu,
-  SidebarMenuItem,
   SidebarMenuButton,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarHeader,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { toggleSidebar } = useSidebar();
   const { 
     chats, 
     chatsLoaded,
-    activeChatId, 
     createChat, 
     switchToChat,
     isLoading 
   } = useChat();
+  
+  // Get current chatId from URL
+  const { chatId } = useCurrentChat();
   
   // Get loading state directly from store for real-time updates
   const { loadingChatId } = useChatStore();
@@ -69,14 +72,9 @@ export function AppSidebar() {
     return groups;
   }, {} as Record<string, typeof chats>);
 
-  const handleNewChat = async () => {
-    try {
-      const newChatId = await createChat();
-      // Navigate to the new chat
-      navigate(`/chat/${newChatId}`);
-    } catch (error) {
-      console.error('Failed to create chat:', error);
-    }
+  const handleNewChat = () => {
+    // Navigate to the base chat URL to show EmptyChatWelcome
+    navigate('/chat');
   };
 
   const handleChatClick = async (chatId: string) => {
@@ -90,22 +88,47 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar collapsible="icon" className="sticky top-12 h-[calc(100vh-3rem)] z-40">
+    <Sidebar collapsible="offcanvas" className="h-screen z-40">
+      <SidebarHeader className="px-4 pt-4">
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleSidebar}
+            className="h-8 w-8 size-10"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </Button>
+          <button 
+            onClick={() => navigate('/chat')}
+            className="text-lg font-semibold whitespace-nowrap overflow-hidden hover:text-muted-foreground transition-colors"
+          >
+            Volo Chat
+          </button>
+          <div className="w-8"></div> {/* Spacer for centering */}
+        </div>
+      </SidebarHeader>
+
       <SidebarContent className="overflow-y-auto">
         <SidebarGroup>
           <SidebarGroupContent>
-            <div className="space-y-2">
+            <div className="space-y-2 pt-2">
               {/* New chat button */}
-              <Button
-                onClick={handleNewChat}
-                disabled={isLoading}
-                className="w-full justify-start"
-                variant="outline"
-                size="sm"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                New Chat
-              </Button>
+              <div className="relative group">
+                {/* Animated border */}
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-400 via-purple-400 to-blue-400 dark:from-blue-600 dark:via-purple-600 dark:to-blue-600 rounded-lg opacity-40 group-hover:opacity-70 dark:opacity-55 dark:group-hover:opacity-100 animate-pulse"></div>
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-300 via-purple-300 to-blue-300 dark:from-blue-500 dark:via-purple-500 dark:to-blue-500 rounded-lg animate-spin-slow opacity-15 dark:opacity-20"></div>
+                
+                <Button
+                  onClick={handleNewChat}
+                  disabled={isLoading}
+                  className="relative w-full justify-start bg-gradient-to-r from-slate-100 via-blue-100 to-slate-50 hover:from-slate-200 hover:via-blue-200 hover:to-slate-100 dark:from-slate-900 dark:via-blue-900 dark:to-slate-800 dark:hover:from-slate-800 dark:hover:via-blue-800 dark:hover:to-slate-700 bg-[length:200%_200%] animate-gradient-shift text-slate-800 dark:text-white border border-slate-200 dark:border-0 shadow-md hover:shadow-lg dark:shadow-lg dark:hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  size="sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Chat
+                </Button>
+              </div>
 
               {/* Search */}
               <div className="relative">
@@ -148,7 +171,7 @@ export function AppSidebar() {
                             key={chat.id}
                             className={cn(
                               "w-full justify-start text-left transition-colors",
-                              activeChatId === chat.id && "bg-accent text-accent-foreground",
+                              chatId === chat.id && "bg-accent text-accent-foreground",
                               loadingChatId === chat.id && "opacity-60"
                             )}
                             onClick={() => handleChatClick(chat.id)}
@@ -173,19 +196,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Settings" isActive={isActive('/settings')} asChild>
-              <Link to="/settings">
-                <Settings className="w-4 h-4" />
-                <span>Settings</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
     </Sidebar>
   );
 } 

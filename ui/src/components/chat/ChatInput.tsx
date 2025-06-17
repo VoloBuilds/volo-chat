@@ -1,19 +1,28 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useChat } from '../../hooks/useChat';
+import { useCurrentChat } from '../../hooks/useCurrentChat';
+
+import { useSidebar } from '../ui/sidebar';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import { FileUpload } from './FileUpload';
 import { ModelSelector } from './ModelSelector';
+import { ImageAttachment } from './ImageAttachment';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { cn } from '../../lib/utils';
-import { Send, Paperclip, X, Image as ImageIcon, Eye, File } from 'lucide-react';
+import { Send, Paperclip, X, File, ArrowDown } from 'lucide-react';
 import { Attachment } from '../../types/chat';
 import { v4 as uuidv4 } from 'uuid';
 
-export function ChatInput() {
+export function ChatInput({ showScrollButton, onScrollToBottom }: { 
+  showScrollButton?: boolean; 
+  onScrollToBottom?: () => void; 
+} = {}) {
   const navigate = useNavigate();
-  const { sendMessage, isStreaming, activeChatId, createChat } = useChat();
+  const { sendMessage, isStreaming, createChat } = useChat();
+  const { chatId } = useCurrentChat(); // Get chatId from URL
+  const { open: isSidebarOpen, isMobile } = useSidebar();
   const [message, setMessage] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<Attachment[]>([]);
   const [isComposing, setIsComposing] = useState(false);
@@ -43,6 +52,7 @@ export function ChatInput() {
     console.log('[CHAT-INPUT] Sending message:', {
       messageLength: messageToSend.length,
       attachedFiles: attachmentsToSend.length,
+      chatId,
       fileDetails: attachmentsToSend.map(att => ({
         id: att.id,
         filename: att.filename,
@@ -70,8 +80,8 @@ export function ChatInput() {
     setAttachedFiles([]);
 
     try {
-            // Create chat if none exists
-      if (!activeChatId) {
+      // Create chat if none exists (no chatId in URL means we're on welcome screen)
+      if (!chatId) {
         console.log('[CHAT-INPUT] Creating new chat');
         const newChatId = await createChat();
         console.log('[CHAT-INPUT] New chat created:', newChatId);
@@ -79,11 +89,13 @@ export function ChatInput() {
         // Navigate to the new chat URL
         navigate(`/chat/${newChatId}`);
 
-        // Send the message to the newly created chat
+        // Send the message to the newly created chat using store directly
         console.log('[CHAT-INPUT] Sending message to newly created chat');
-        await sendMessage(messageToSend, filesToSend, blobUrlMap);
+        const { useChatStore } = await import('../../stores/chatStore');
+        const { sendMessage: directSendMessage } = useChatStore.getState();
+        await directSendMessage(newChatId, messageToSend, filesToSend, blobUrlMap);
       } else {
-        console.log('[CHAT-INPUT] Sending message to existing chat:', activeChatId);
+        console.log('[CHAT-INPUT] Sending message to existing chat:', chatId);
         await sendMessage(messageToSend, filesToSend, blobUrlMap);
       }
       
@@ -161,80 +173,122 @@ export function ChatInput() {
   const isDisabled = isStreaming;
 
   return (
-    <div className="space-y-3">
-      {/* File attachments preview */}
-      {attachedFiles.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {attachedFiles.map((attachment, index) => (
-            <FilePreviewCard
-              key={attachment.id}
-              attachment={attachment}
-              onRemove={() => removeFile(index)}
-              onImageClick={() => openImageViewer(attachment)}
-            />
-          ))}
-        </div>
+    <div 
+      className={cn(
+        "fixed bottom-0 right-0 z-50 transition-all duration-300 ease-in-out",
+        isSidebarOpen && !isMobile ? "left-64" : "left-0"
       )}
+    >
+      <div className={cn(
+        "mx-auto space-y-3 transition-all duration-300 ease-in-out",
+        isSidebarOpen && !isMobile ? 'max-w-3xl' : 'max-w-4xl'
+      )}>
+        {/* Non-image file attachments preview */}
+        {attachedFiles.filter(att => !att.fileType.startsWith('image/')).length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {attachedFiles
+              .filter(att => !att.fileType.startsWith('image/'))
+              .map((attachment, index) => (
+                <FilePreviewCard
+                  key={attachment.id}
+                  attachment={attachment}
+                  onRemove={() => removeFile(attachedFiles.findIndex(att => att.id === attachment.id))}
+                />
+              ))}
+          </div>
+        )}
 
-      {/* Main input container - floating design */}
-      <div className="relative bg-background border border-border rounded-2xl shadow-lg overflow-hidden">
-        {/* Message input */}
-        <div className="relative">
-          <Textarea
-            ref={textareaRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onCompositionStart={() => setIsComposing(true)}
-            onCompositionEnd={() => setIsComposing(false)}
-            placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
-            disabled={isDisabled}
-            className="min-h-[52px] max-h-[150px] resize-none border-0 focus:ring-0 focus-visible:ring-0 bg-transparent px-4 py-3 pr-12 text-base placeholder:text-muted-foreground/70"
-            style={{ resize: 'none' }}
-          />
-          
-          {/* Send button inside input */}
+        {/* Scroll to bottom button */}
+        <div className={cn(
+          "flex justify-end pr-4 transition-all duration-300 ease-in-out",
+          showScrollButton 
+            ? "opacity-100 translate-y-0 pointer-events-auto" 
+            : "opacity-0 translate-y-2 pointer-events-none"
+        )}>
           <Button
-            onClick={handleSend}
-            disabled={isDisabled || (!message.trim() && attachedFiles.length === 0)}
+            onClick={onScrollToBottom}
             size="sm"
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 rounded-full"
+            className="bg-primary text-primary-foreground w-10 h-10 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
           >
-            <Send className="h-4 w-4" />
+            <ArrowDown className="h-4 w-4" />
           </Button>
         </div>
 
-        {/* Bottom controls */}
-        <div className="flex items-center justify-between px-4 py-2 border-t bg-muted/20">
-          {/* Left side - Upload and Model selector */}
-          <div className="flex items-center gap-3">
-            <FileUpload onFileSelect={handleFileSelect} disabled={isDisabled}>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={isDisabled}
-                className="h-8 px-3 text-muted-foreground hover:text-foreground"
-              >
-                <Paperclip className="h-4 w-4 mr-1" />
-                <span className="text-xs">Attach</span>
-              </Button>
-            </FileUpload>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Model:</span>
-              <ModelSelector />
-            </div>
+        {/* Main input container - glassmorphism overlay design */}
+        <div className="relative bg-background/80 backdrop-blur-lg border rounded-t-2xl shadow-2xl overflow-hidden">
+          {/* Message input */}
+          <div className="relative">
+            <Textarea
+              ref={textareaRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onCompositionStart={() => setIsComposing(true)}
+              onCompositionEnd={() => setIsComposing(false)}
+              placeholder={isMobile ? "Type your message..." : "Type your message... (Enter to send, Shift+Enter for new line)"}
+              disabled={isDisabled}
+              className="min-h-[52px] max-h-[150px] resize-none border-0 focus:ring-0 focus-visible:ring-0 bg-transparent px-4 py-3 text-base placeholder:text-muted-foreground/70"
+              style={{ resize: 'none' }}
+            />
           </div>
 
-          {/* Right side - Character count */}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {message.length > 500 ? (
-              <span className={cn(
-                message.length > 2000 ? "text-destructive" : "text-warning"
-              )}>
-                {message.length} characters
-              </span>
-            ) : null}
+          {/* Image attachments preview - inside the input container */}
+          {attachedFiles.filter(att => att.fileType.startsWith('image/')).length > 0 && (
+            <div className="px-4 pb-2 dark:bg-input/30">
+              <div className="flex flex-wrap gap-2">
+                {attachedFiles
+                  .filter(att => att.fileType.startsWith('image/'))
+                  .map((attachment) => (
+                    <ImageAttachment
+                      key={attachment.id}
+                      attachment={attachment}
+                      onRemove={() => removeFile(attachedFiles.findIndex(att => att.id === attachment.id))}
+                    />
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Bottom controls - integrated directly */}
+          <div className="flex items-center justify-between px-4 py-2 dark:bg-input/30">
+            {/* Left side - Model selector and Upload */}
+            <div className="flex items-center gap-3">
+              <div className="[&>button]:bg-transparent [&>button]:border-transparent [&>button]:shadow-none [&>button]:backdrop-blur-none [&>button]:hover:bg-white/10">
+                <ModelSelector />
+              </div>
+              
+              <FileUpload onFileSelect={handleFileSelect} disabled={isDisabled}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={isDisabled}
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-white/10 bg-transparent"
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+              </FileUpload>
+            </div>
+
+            {/* Right side - Character count and Send button */}
+            <div className="flex items-center gap-3">
+              {message.length > 500 ? (
+                <span className={cn(
+                  "text-xs",
+                  message.length > 2000 ? "text-destructive" : "text-warning"
+                )}>
+                  {message.length} characters
+                </span>
+              ) : null}
+              
+              <Button
+                onClick={handleSend}
+                disabled={isDisabled || (!message.trim() && attachedFiles.length === 0)}
+                size="sm"
+                className="h-8 w-8 p-0 rounded-full"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -260,52 +314,32 @@ export function ChatInput() {
   );
 }
 
-// Separate component for file preview cards
+// Separate component for file preview cards (non-images only now)
 function FilePreviewCard({ 
   attachment, 
-  onRemove, 
-  onImageClick 
+  onRemove
 }: { 
   attachment: Attachment;
   onRemove: () => void;
-  onImageClick?: () => void;
 }) {
-  const isImage = attachment.fileType.startsWith('image/');
-  
   return (
-    <div className="relative group bg-background border rounded-lg p-2 shadow-sm">
-      {isImage && attachment.file ? (
-        <div className="flex items-center gap-2">
-          <ImagePreview 
-            file={attachment.file} 
-            filename={attachment.filename}
-            onClick={onImageClick}
-          />
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-medium truncate max-w-[120px]">{attachment.filename}</span>
-            <span className="text-xs text-muted-foreground">
-              {(attachment.fileSize / 1024).toFixed(1)} KB • Ready to send
-            </span>
-          </div>
+    <div className="relative group bg-background/80 backdrop-blur-lg border border-border/50 rounded-t-lg p-2 shadow-lg">
+      <div className="flex items-center gap-2">
+        <div className="w-12 h-12 bg-muted/60 backdrop-blur-sm rounded flex items-center justify-center">
+          <File className="h-6 w-6 text-muted-foreground" />
         </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
-            <File className="h-6 w-6 text-muted-foreground" />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-sm font-medium truncate max-w-[120px]">{attachment.filename}</span>
-            <span className="text-xs text-muted-foreground">
-              {(attachment.fileSize / 1024).toFixed(1)} KB • Ready to send
-            </span>
-          </div>
+        <div className="flex flex-col min-w-0">
+          <span className="text-sm font-medium truncate max-w-[120px]">{attachment.filename}</span>
+          <span className="text-xs text-muted-foreground">
+            {(attachment.fileSize / 1024).toFixed(1)} KB • Ready to send
+          </span>
         </div>
-      )}
+      </div>
       
       <Button
         variant="ghost"
         size="sm"
-        className="absolute -top-2 -right-2 h-6 w-6 p-0 bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+        className="absolute -top-2 -right-2 h-6 w-6 p-0 bg-destructive/90 backdrop-blur-sm text-destructive-foreground hover:bg-destructive/95 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
         onClick={onRemove}
       >
         <X className="h-3 w-3" />
@@ -314,49 +348,4 @@ function FilePreviewCard({
   );
 }
 
-// Simple image preview component
-function ImagePreview({ 
-  file, 
-  filename, 
-  onClick 
-}: { 
-  file: File; 
-  filename: string;
-  onClick?: () => void;
-}) {
-  const [src, setSrc] = useState<string | null>(null);
-
-  useEffect(() => {
-    const url = URL.createObjectURL(file);
-    setSrc(url);
-    
-    return () => {
-      URL.revokeObjectURL(url);
-    };
-  }, [file]);
-
-  if (!src) {
-    return (
-      <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
-        <ImageIcon className="h-6 w-6 text-muted-foreground" />
-      </div>
-    );
-  }
-
-  return (
-    <div 
-      className="relative cursor-pointer group"
-      onClick={onClick}
-    >
-      <img
-        src={src}
-        alt={filename}
-        className="w-12 h-12 object-cover rounded transition-transform group-hover:scale-105"
-      />
-      {/* Hover overlay */}
-      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded">
-        <Eye className="w-4 h-4 text-white" />
-      </div>
-    </div>
-  );
-} 
+ 

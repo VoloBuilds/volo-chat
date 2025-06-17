@@ -1,7 +1,7 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { type VariantProps, cva } from "class-variance-authority"
-import { PanelLeftIcon } from "lucide-react"
+import { PanelLeftIcon, PanelLeftOpenIcon } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
@@ -229,8 +229,8 @@ function Sidebar({
         className={cn(
           "bg-sidebar flex h-full w-(--sidebar-width) flex-col transition-[width] duration-200 ease-linear overflow-hidden",
           variant === "floating" || variant === "inset"
-            ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
-            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
+            ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)] group-data-[collapsible=offcanvas]:w-0"
+            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[collapsible=offcanvas]:w-0 group-data-[side=left]:group-data-[state=expanded]:border-r group-data-[side=right]:group-data-[state=expanded]:border-l",
           className
         )}
         {...props}
@@ -267,7 +267,7 @@ function SidebarTrigger({
       }}
       {...props}
     >
-      <PanelLeftIcon />
+      <PanelLeftOpenIcon className="w-7 h-7" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   )

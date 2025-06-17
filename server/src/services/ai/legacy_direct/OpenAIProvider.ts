@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
-import { BaseAIProvider } from './BaseProvider';
-import { AIModel, ChatMessage } from '../../types/ai';
+import { BaseAIProvider } from '../BaseProvider';
+import { AIModel, ChatMessage } from '../../../types/ai';
 
 export class OpenAIProvider extends BaseAIProvider {
   name = 'openai';

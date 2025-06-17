@@ -1,48 +1,115 @@
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
-import { Menu, MessageSquare } from "lucide-react";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { PanelLeftOpen, Settings, LogOut, Sun, Moon } from "lucide-react";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/auth-context";
-import { ModeToggle } from "@/components/mode-toggle";
+import { useTheme } from "next-themes";
 import { Link } from "react-router-dom";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
 
 export function Navbar() {
   const { user } = useAuth();
+  const { theme, setTheme } = useTheme();
+  const { state, isMobile, openMobile } = useSidebar();
+
+  // Show expand button logic:
+  // - In mobile: always show when mobile sidebar is closed
+  // - In desktop: show when sidebar is collapsed
+  const showExpandButton = isMobile ? !openMobile : state === "collapsed";
+
+  const getUserInitials = (user: any) => {
+    if (user?.displayName) {
+      return user.displayName
+        .split(' ')
+        .map((name: string) => name[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2);
+    }
+    if (user?.email) {
+      return user.email[0].toUpperCase();
+    }
+    return 'U';
+  };
+
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark");
+  };
 
   return (
-    <header className="sticky top-0 z-50 flex items-center h-12 px-2 border-b shrink-0 bg-background">
-      <div className="flex items-center">
-        <SidebarTrigger className="size-8">
-          <Menu className="w-5 h-5" />
-        </SidebarTrigger>
-        <span className="font-semibold ml-3">My App</span>
-      </div>
-      <div className="flex items-center gap-3 ml-auto">
-        {user && (
-          <>
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/chat" className="gap-2">
-                <MessageSquare className="h-4 w-4" />
-                Chat
-              </Link>
-            </Button>
-            <span className="text-sm">
-              Welcome, {user.displayName || user.email}
-            </span>
-          </>
-        )}
-        <ModeToggle />
-        {user && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => signOut(auth)}
-          >
-            Sign Out
-          </Button>
-        )}
-      </div>
+    <header className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-4 pointer-events-none">
+      {/* Left side - Sidebar trigger (only show when collapsed with delay) */}
+      {showExpandButton && (
+        <div className="pointer-events-auto">
+          <SidebarTrigger className="size-10 bg-background/80 backdrop-blur-sm border shadow-lg hover:bg-background/90 transition-colors"/>
+        </div>
+      )}
+
+      {/* Spacer when sidebar is expanded */}
+      {!showExpandButton && <div></div>}
+
+      {/* Right side - User avatar dropdown */}
+      {user && (
+        <div className="pointer-events-auto">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="relative size-10 rounded-full bg-background/80 backdrop-blur-sm border shadow-lg hover:bg-background/90 transition-colors p-0"
+              >
+                <Avatar className="size-8">
+                  <AvatarImage src={user?.photoURL || ""} alt={user?.displayName || user?.email || ""} />
+                  <AvatarFallback className="text-sm font-medium">
+                    {getUserInitials(user)}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56" align="end" forceMount>
+              <div className="flex flex-col space-y-1 p-2">
+                <p className="text-sm font-medium leading-none">
+                  {user.displayName || "User"}
+                </p>
+                <p className="text-xs leading-none text-muted-foreground">
+                  {user.email}
+                </p>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/settings" className="cursor-pointer">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={toggleTheme} className="cursor-pointer">
+                {theme === "dark" ? (
+                  <Sun className="mr-2 h-4 w-4" />
+                ) : (
+                  <Moon className="mr-2 h-4 w-4" />
+                )}
+                {theme === "dark" ? "Light mode" : "Dark mode"}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => signOut(auth)} 
+                className="cursor-pointer text-red-600 focus:text-red-600"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
     </header>
   );
 } 

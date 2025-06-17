@@ -11,7 +11,7 @@ interface MarkdownProps {
 
 export function Markdown({ content, className }: MarkdownProps) {
   return (
-    <div className={cn("prose prose-sm max-w-none dark:prose-invert", className)}>
+    <div className={cn("prose prose-base dark:prose-invert w-full min-w-0 prose-code:text-base prose-pre:text-base", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -22,27 +22,30 @@ export function Markdown({ content, className }: MarkdownProps) {
             
             if (!inline && language) {
               return (
-                <div className="my-4">
+                <div className="my-4 w-full min-w-0 overflow-hidden">
                   {/* Language label */}
                   <div className="bg-muted/50 rounded-t-lg px-3 py-1 text-xs font-medium text-muted-foreground border-b">
                     {language}
                   </div>
-                  {/* Code block */}
-                  <SyntaxHighlighter
-                    style={oneDark}
-                    language={language}
-                    PreTag="div"
-                    customStyle={{
-                      margin: 0,
-                      borderTopLeftRadius: 0,
-                      borderTopRightRadius: 0,
-                      borderBottomLeftRadius: '0.5rem',
-                      borderBottomRightRadius: '0.5rem',
-                    }}
-                    {...props}
-                  >
-                    {String(children).replace(/\n$/, '')}
-                  </SyntaxHighlighter>
+                  {/* Code block with horizontal scroll */}
+                  <div className="overflow-x-auto">
+                    <SyntaxHighlighter
+                      style={oneDark}
+                      language={language}
+                      PreTag="div"
+                      customStyle={{
+                        margin: 0,
+                        borderTopLeftRadius: 0,
+                        borderTopRightRadius: 0,
+                        borderBottomLeftRadius: '0.5rem',
+                        borderBottomRightRadius: '0.5rem',
+                        fontSize: '1rem', // text-base equivalent (16px)
+                      }}
+                      {...props}
+                    >
+                      {String(children).replace(/\n$/, '')}
+                    </SyntaxHighlighter>
+                  </div>
                 </div>
               );
             }
@@ -50,7 +53,7 @@ export function Markdown({ content, className }: MarkdownProps) {
             // Inline code
             return (
               <code 
-                className="bg-muted/50 rounded px-1.5 py-0.5 text-sm font-mono"
+                className="bg-muted/50 rounded px-1.5 py-0.5 text-base font-mono break-words"
                 {...props}
               >
                 {children}
@@ -87,22 +90,22 @@ export function Markdown({ content, className }: MarkdownProps) {
           
           td({ children }) {
             return (
-              <td className="px-3 py-2 text-sm border-b border-border">
+              <td className="px-3 py-2 text-base border-b border-border">
                 {children}
               </td>
             );
           },
           
           ul({ children }) {
-            return <ul className="list-disc list-inside space-y-1 my-2">{children}</ul>;
+            return <ul className="list-disc pl-6 space-y-1 my-2">{children}</ul>;
           },
           
           ol({ children }) {
-            return <ol className="list-decimal list-inside space-y-1 my-2">{children}</ol>;
+            return <ol className="list-decimal pl-6 space-y-1 my-2">{children}</ol>;
           },
           
           li({ children }) {
-            return <li className="text-sm">{children}</li>;
+            return <li className="text-base leading-relaxed">{children}</li>;
           },
           
           h1({ children }) {
@@ -118,7 +121,7 @@ export function Markdown({ content, className }: MarkdownProps) {
           },
           
           p({ children }) {
-            return <p className="text-sm leading-relaxed mb-3 last:mb-0">{children}</p>;
+            return <p className="text-base leading-relaxed mb-3 last:mb-0">{children}</p>;
           },
           
           a({ href, children }) {

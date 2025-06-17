@@ -46,7 +46,7 @@ export class TitleGenerator {
 
     // Check if the model is available
     try {
-      const availableModels = this.aiManager.getAllModels();
+      const availableModels = await this.aiManager.getAllModels();
       const requestedModel = availableModels.find(m => m.id === modelId);
       
       if (!requestedModel) {

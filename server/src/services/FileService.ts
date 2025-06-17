@@ -321,12 +321,55 @@ export class FileService {
     return size <= maxSize;
   }
 
-  // Get file URL for AI processing
+  // Get file URL for AI processing (for direct provider access)
   getFileUrlForAI(fileRecord: FileRecord): string | null {
     if (fileRecord.r2Url) {
       return fileRecord.r2Url;
     }
     return null;
+  }
+
+  // Get file as base64 data URL for OpenRouter (requires base64 format)
+  async getFileAsBase64ForOpenRouter(fileRecord: FileRecord, env?: CloudflareEnv): Promise<string | null> {
+    try {
+      console.log(`[FILE-SERVICE] Converting file ${fileRecord.id} to base64 for OpenRouter:`, {
+        filename: fileRecord.filename,
+        fileType: fileRecord.fileType,
+        status: fileRecord.status,
+        hasEnv: !!env,
+        hasR2Bucket: !!env?.R2_BUCKET
+      });
+
+      const buffer = await this.getFileBuffer(fileRecord.id, env);
+      if (!buffer) {
+        console.warn(`[FILE-SERVICE] Could not retrieve buffer for file ${fileRecord.id}`);
+        return null;
+      }
+
+      console.log(`[FILE-SERVICE] Retrieved buffer for file ${fileRecord.id}, size: ${buffer.byteLength} bytes`);
+
+      // Convert ArrayBuffer to base64
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+
+      console.log(`[FILE-SERVICE] Successfully converted file ${fileRecord.id} to base64:`, {
+        originalSize: buffer.byteLength,
+        base64Length: base64.length,
+        fileType: fileRecord.fileType
+      });
+
+      // Return as data URL format that OpenRouter expects
+      const dataUrl = `data:${fileRecord.fileType};base64,${base64}`;
+      console.log(`[FILE-SERVICE] Created data URL for file ${fileRecord.id}, total length: ${dataUrl.length}`);
+      return dataUrl;
+    } catch (error) {
+      console.error(`[FILE-SERVICE] Error converting file ${fileRecord.id} to base64:`, error);
+      return null;
+    }
   }
 
   // For AI processing, we'll need to use R2 URLs or generate signed URLs

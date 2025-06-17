@@ -29,11 +29,11 @@ function getAIManager(): AIProviderManager {
 }
 
 // GET /api/models - List available AI models
-models.get('/', (c) => {
+models.get('/', async (c) => {
   try {
     console.log('Models endpoint called');
     const aiManager = getAIManager();
-    const availableModels = aiManager.getAllModels();
+    const availableModels = await aiManager.getAllModels();
     const availableProviders = aiManager.getAvailableProviders();
     const configuredProviders = aiManager.getConfiguredProviders();
     
@@ -56,11 +56,11 @@ models.get('/', (c) => {
 });
 
 // GET /api/models/:id - Get specific model details
-models.get('/:id', (c) => {
+models.get('/:id', async (c) => {
   try {
     const modelId = c.req.param('id');
     const aiManager = getAIManager();
-    const availableModels = aiManager.getAllModels();
+    const availableModels = await aiManager.getAllModels();
     const model = availableModels.find(m => m.id === modelId);
     
     if (!model) {

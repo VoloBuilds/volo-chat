@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { BaseAIProvider } from './BaseProvider';
-import { AIModel, ChatMessage } from '../../types/ai';
+import { BaseAIProvider } from '../BaseProvider';
+import { AIModel, ChatMessage } from '../../../types/ai';
 
 export class AnthropicProvider extends BaseAIProvider {
   name = 'anthropic';

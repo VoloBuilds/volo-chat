@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { BaseAIProvider } from './BaseProvider';
-import { AIModel, ChatMessage } from '../../types/ai';
+import { BaseAIProvider } from '../BaseProvider';
+import { AIModel, ChatMessage } from '../../../types/ai';
 
 export class GoogleProvider extends BaseAIProvider {
   name = 'google';

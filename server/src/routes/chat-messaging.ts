@@ -10,6 +10,22 @@ import { ChatMessage } from '../types/ai';
 import { titleGenerator } from '../utils/titleGenerator';
 import { ModelMappings } from '../services/ai/ModelMappings';
 
+// Helper function to check if a file type is text-based
+function isTextBasedFile(mimeType?: string): boolean {
+  if (!mimeType) return false;
+  
+  const textBasedTypes = [
+    'text/plain',
+    'text/markdown',
+    'application/json',
+    'text/csv',
+    'text/rtf',
+    'application/rtf'
+  ];
+  
+  return textBasedTypes.includes(mimeType) || mimeType.startsWith('text/');
+}
+
 const chatMessaging = new Hono();
 const aiManager = new AIProviderManager();
 const fileService = new FileService();
@@ -177,7 +193,7 @@ chatMessaging.post('/:id/send', rateLimitMiddleware(30, 60000), async (c) => {
                   mimeType: 'text/plain',
                 };
               } else {
-                // Handle non-image files (PDFs, documents, etc.)
+                // Handle non-image files (PDFs, documents, text files, etc.)
                 const fileRecord = await fileService.getFile(att.id);
                 
                 if (!fileRecord) {
@@ -189,20 +205,37 @@ chatMessaging.post('/:id/send', rateLimitMiddleware(30, 60000), async (c) => {
                   };
                 }
 
-                if (usingOpenRouter && att.fileType === 'application/pdf') {
-                  // OpenRouter supports PDF files as base64
-                  console.log(`[CHAT-SEND] Getting base64 PDF for OpenRouter: ${att.id}`);
-                  const base64Data = await fileService.getFileAsBase64ForOpenRouter(fileRecord, c.env as CloudflareEnv);
-                  if (base64Data) {
-                    return {
-                      type: 'pdf' as const,
-                      data: base64Data,
-                      mimeType: att.fileType,
-                    };
+                // Check if this is a text-based file that we can process inline
+                const isTextBased = isTextBasedFile(att.fileType);
+                
+                if (usingOpenRouter) {
+                  if (att.fileType === 'application/pdf') {
+                    // OpenRouter supports PDF files as base64
+                    console.log(`[CHAT-SEND] Getting base64 PDF for OpenRouter: ${att.id}`);
+                    const base64Data = await fileService.getFileAsBase64ForOpenRouter(fileRecord, c.env as CloudflareEnv);
+                    if (base64Data) {
+                      return {
+                        type: 'pdf' as const,
+                        data: base64Data,
+                        mimeType: att.fileType,
+                      };
+                    }
+                    console.warn(`PDF ${att.id} could not be converted to base64 for OpenRouter`);
+                  } else if (isTextBased) {
+                    // For text-based files, get the content as base64 and let OpenRouter process it
+                    console.log(`[CHAT-SEND] Getting base64 text file for OpenRouter: ${att.id}`);
+                    const base64Data = await fileService.getFileAsBase64ForOpenRouter(fileRecord, c.env as CloudflareEnv);
+                    if (base64Data) {
+                      return {
+                        type: 'text' as const,
+                        data: base64Data,
+                        mimeType: att.fileType,
+                      };
+                    }
+                    console.warn(`Text file ${att.id} could not be converted to base64 for OpenRouter`);
                   }
-                  console.warn(`PDF ${att.id} could not be converted to base64 for OpenRouter`);
                 } else {
-                  // For direct providers or non-PDF files, try R2 URL
+                  // For direct providers, try R2 URL
                   console.log(`[CHAT-SEND] Getting R2 URL for file: ${att.id}`);
                   const r2Url = fileService.getFileUrlForAI(fileRecord);
                   if (r2Url) {
@@ -491,7 +524,7 @@ chatMessaging.post('/:id/stream-http', rateLimitMiddleware(30, 60000), async (c)
                   mimeType: 'text/plain',
                 };
               } else {
-                // Handle non-image files (PDFs, documents, etc.)
+                // Handle non-image files (PDFs, documents, text files, etc.)
                 const fileRecord = await fileService.getFile(att.id);
                 
                 if (!fileRecord) {
@@ -503,20 +536,37 @@ chatMessaging.post('/:id/stream-http', rateLimitMiddleware(30, 60000), async (c)
                   };
                 }
 
-                if (usingOpenRouter && att.fileType === 'application/pdf') {
-                  // OpenRouter supports PDF files as base64
-                  console.log(`[HTTP-STREAM] Getting base64 PDF for OpenRouter: ${att.id}`);
-                  const base64Data = await fileService.getFileAsBase64ForOpenRouter(fileRecord, c.env as CloudflareEnv);
-                  if (base64Data) {
-                    return {
-                      type: 'pdf' as const,
-                      data: base64Data,
-                      mimeType: att.fileType,
-                    };
+                // Check if this is a text-based file that we can process inline
+                const isTextBased = isTextBasedFile(att.fileType);
+                
+                if (usingOpenRouter) {
+                  if (att.fileType === 'application/pdf') {
+                    // OpenRouter supports PDF files as base64
+                    console.log(`[HTTP-STREAM] Getting base64 PDF for OpenRouter: ${att.id}`);
+                    const base64Data = await fileService.getFileAsBase64ForOpenRouter(fileRecord, c.env as CloudflareEnv);
+                    if (base64Data) {
+                      return {
+                        type: 'pdf' as const,
+                        data: base64Data,
+                        mimeType: att.fileType,
+                      };
+                    }
+                    console.warn(`PDF ${att.id} could not be converted to base64 for OpenRouter`);
+                  } else if (isTextBased) {
+                    // For text-based files, get the content as base64 and let OpenRouter process it
+                    console.log(`[HTTP-STREAM] Getting base64 text file for OpenRouter: ${att.id}`);
+                    const base64Data = await fileService.getFileAsBase64ForOpenRouter(fileRecord, c.env as CloudflareEnv);
+                    if (base64Data) {
+                      return {
+                        type: 'text' as const,
+                        data: base64Data,
+                        mimeType: att.fileType,
+                      };
+                    }
+                    console.warn(`Text file ${att.id} could not be converted to base64 for OpenRouter`);
                   }
-                  console.warn(`PDF ${att.id} could not be converted to base64 for OpenRouter`);
                 } else {
-                  // For direct providers or non-PDF files, try R2 URL
+                  // For direct providers, try R2 URL
                   console.log(`[HTTP-STREAM] Getting R2 URL for file: ${att.id}`);
                   const r2Url = fileService.getFileUrlForAI(fileRecord);
                   if (r2Url) {
@@ -619,10 +669,21 @@ chatMessaging.post('/:id/stream-http', rateLimitMiddleware(30, 60000), async (c)
 
         } catch (error) {
           console.error('[HTTP-STREAM] Error:', error);
+          
+          // Extract error details for better client-side handling
+          const isProviderError = error && typeof error === 'object' && 'provider' in error;
+          const statusCode = isProviderError ? (error as any).statusCode : undefined;
+          const provider = isProviderError ? (error as any).provider : 'unknown';
+          const retryable = isProviderError ? (error as any).retryable : false;
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({
               type: 'stream_error',
-              error: error instanceof Error ? error.message : 'Unknown error'
+              error: errorMessage,
+              statusCode: statusCode,
+              provider: provider,
+              retryable: retryable
             })}\n\n`)
           );
         } finally {

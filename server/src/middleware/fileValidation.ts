@@ -53,6 +53,14 @@ export const ALLOWED_DOCUMENT_TYPES = [
   'application/pdf',
   'text/plain',
   'text/markdown',
+  'application/json',
+  'text/csv',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/rtf',
+  'application/rtf',
 ];
 
 export const ALL_ALLOWED_TYPES = [

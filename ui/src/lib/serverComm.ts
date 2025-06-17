@@ -325,7 +325,13 @@ export function streamChatResponse(data: {
                             return;
                             
                           case 'stream_error':
-                            throw new Error(eventData.error || 'Streaming error occurred');
+                            // Create a structured error with provider details
+                            const enhancedError = new Error(eventData.error || 'Streaming error occurred');
+                            (enhancedError as any).statusCode = eventData.statusCode;
+                            (enhancedError as any).provider = eventData.provider;
+                            (enhancedError as any).retryable = eventData.retryable;
+                            (enhancedError as any).isProviderError = true;
+                            throw enhancedError;
                         }
                       }
                     } catch (parseError) {

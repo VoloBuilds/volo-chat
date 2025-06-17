@@ -72,7 +72,7 @@ export function MessageList({ onScrollStateChange }: MessageListProps = {}) {
       {/* Scrollable messages container using ScrollArea */}
       <ScrollArea className="h-full" ref={scrollAreaRef}>
         <div className={`${isSidebarOpen && !isMobile ? 'max-w-[calc(100vw-20rem)] lg:max-w-3xl' : 'max-w-4xl'} mx-auto px-4 py-6 w-full`}>
-          <div className="space-y-8 w-full pb-32">
+          <div className={`space-y-8 w-full ${isMobile ? 'pt-16 pb-32' : 'pb-32'}`}>
             {currentMessages.map((message, index) => (
               <MessageBubble 
                 key={message.id}

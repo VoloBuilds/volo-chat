@@ -9,18 +9,20 @@ import { Textarea } from '../ui/textarea';
 import { FileUpload } from './FileUpload';
 import { ModelSelector } from './ModelSelector';
 import { ImageAttachment } from './ImageAttachment';
+import { FileAttachment } from './FileAttachment';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { cn } from '../../lib/utils';
 import { Send, Paperclip, X, File, ArrowDown } from 'lucide-react';
 import { Attachment } from '../../types/chat';
 import { v4 as uuidv4 } from 'uuid';
+import { requiresAnalysisModel, findBestAnalysisModel, getModelSwitchReason } from '../../utils/modelUtils';
 
 export function ChatInput({ showScrollButton, onScrollToBottom }: { 
   showScrollButton?: boolean; 
   onScrollToBottom?: () => void; 
 } = {}) {
   const navigate = useNavigate();
-  const { sendMessage, isStreaming, createChat } = useChat();
+  const { sendMessage, isStreaming, createChat, availableModels, selectedModelId, selectModel } = useChat();
   const { chatId } = useCurrentChat(); // Get chatId from URL
   const { open: isSidebarOpen, isMobile } = useSidebar();
   const [message, setMessage] = useState('');
@@ -128,6 +130,19 @@ export function ChatInput({ showScrollButton, onScrollToBottom }: {
       size: f.size
     })));
     
+    // Check if any of the new files require analysis capabilities
+    if (requiresAnalysisModel(files)) {
+      const bestAnalysisModel = findBestAnalysisModel(availableModels, selectedModelId);
+      
+      if (bestAnalysisModel && bestAnalysisModel.id !== selectedModelId) {
+        console.log('[CHAT-INPUT] Auto-switching to analysis model:', bestAnalysisModel.name);
+        selectModel(bestAnalysisModel.id);
+        
+        // You could add a toast notification here if desired
+        // toast.info(getModelSwitchReason(files));
+      }
+    }
+    
     // Convert files to attachments with temporary IDs
     const newAttachments: Attachment[] = files.map(file => ({
       id: `temp-${uuidv4()}`, // Temporary ID for optimistic UI
@@ -139,6 +154,11 @@ export function ChatInput({ showScrollButton, onScrollToBottom }: {
     }));
     
     setAttachedFiles(prev => [...prev, ...newAttachments]);
+    
+    // Auto-focus the chat input after file selection
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 100);
   };
 
   const removeFile = (index: number) => {
@@ -183,20 +203,7 @@ export function ChatInput({ showScrollButton, onScrollToBottom }: {
         "mx-auto space-y-3 transition-all duration-300 ease-in-out",
         isSidebarOpen && !isMobile ? 'max-w-3xl' : 'max-w-4xl'
       )}>
-        {/* Non-image file attachments preview */}
-        {attachedFiles.filter(att => !att.fileType.startsWith('image/')).length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {attachedFiles
-              .filter(att => !att.fileType.startsWith('image/'))
-              .map((attachment, index) => (
-                <FilePreviewCard
-                  key={attachment.id}
-                  attachment={attachment}
-                  onRemove={() => removeFile(attachedFiles.findIndex(att => att.id === attachment.id))}
-                />
-              ))}
-          </div>
-        )}
+
 
         {/* Scroll to bottom button */}
         <div className={cn(
@@ -232,16 +239,29 @@ export function ChatInput({ showScrollButton, onScrollToBottom }: {
             />
           </div>
 
-          {/* Image attachments preview - inside the input container */}
-          {attachedFiles.filter(att => att.fileType.startsWith('image/')).length > 0 && (
+          {/* Attachments preview - inside the input container */}
+          {attachedFiles.length > 0 && (
             <div className="px-4 pb-2 dark:bg-input/30">
               <div className="flex flex-wrap gap-2">
+                {/* Image attachments */}
                 {attachedFiles
                   .filter(att => att.fileType.startsWith('image/'))
                   .map((attachment) => (
                     <ImageAttachment
                       key={attachment.id}
                       attachment={attachment}
+                      onRemove={() => removeFile(attachedFiles.findIndex(att => att.id === attachment.id))}
+                    />
+                  ))}
+                
+                {/* Non-image file attachments */}
+                {attachedFiles
+                  .filter(att => !att.fileType.startsWith('image/'))
+                  .map((attachment) => (
+                    <FileAttachment
+                      key={attachment.id}
+                      attachment={attachment}
+                      variant="compact"
                       onRemove={() => removeFile(attachedFiles.findIndex(att => att.id === attachment.id))}
                     />
                   ))}
@@ -280,14 +300,27 @@ export function ChatInput({ showScrollButton, onScrollToBottom }: {
                 </span>
               ) : null}
               
-              <Button
-                onClick={handleSend}
-                disabled={isDisabled || (!message.trim() && attachedFiles.length === 0)}
-                size="sm"
-                className="h-8 w-8 p-0 rounded-full"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
+              {/* Send button with animated gradient border */}
+              <div className="relative group">
+                {/* Animated border - now muted by default */}
+                <div className="absolute -inset-px bg-gradient-to-r from-blue-400 via-purple-400 to-blue-400 dark:from-blue-600 dark:via-purple-600 dark:to-blue-600 rounded-full opacity-20 group-hover:opacity-40 dark:opacity-25 dark:group-hover:opacity-55 animate-pulse"></div>
+                <div className="absolute -inset-px bg-gradient-to-r from-blue-300 via-purple-300 to-blue-300 dark:from-blue-500 dark:via-purple-500 dark:to-blue-500 rounded-full animate-spin-slow opacity-8 dark:opacity-10"></div>
+                
+                {/* Disabled overlay */}
+                {(isDisabled || (!message.trim() && attachedFiles.length === 0)) && (
+                  <div className="absolute -inset-px rounded-full bg-black/40 dark:bg-black/60 z-10"></div>
+                )}
+                
+                <Button
+                  onClick={handleSend}
+                  disabled={isDisabled || (!message.trim() && attachedFiles.length === 0)}
+                  variant="outline"
+                  size="sm"
+                  className="relative h-8 w-8 p-0 rounded-full bg-gradient-to-r from-slate-100 via-blue-100 to-slate-50 hover:from-slate-200 hover:via-blue-200 hover:to-slate-100 dark:from-slate-950 dark:via-slate-900/60 dark:to-slate-950 dark:hover:from-slate-950 dark:hover:via-slate-900/80 dark:hover:to-slate-950 bg-[length:200%_200%] animate-gradient-shift text-slate-800 dark:text-white border border-slate-200 dark:border-slate-800 shadow-md hover:shadow-lg dark:shadow-lg dark:hover:shadow-xl transition-all duration-200 disabled:cursor-not-allowed"
+                >
+                  <Send className="h-4 w-4 transform translate-x-[-1px] translate-y-[1px]" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -314,38 +347,6 @@ export function ChatInput({ showScrollButton, onScrollToBottom }: {
   );
 }
 
-// Separate component for file preview cards (non-images only now)
-function FilePreviewCard({ 
-  attachment, 
-  onRemove
-}: { 
-  attachment: Attachment;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="relative group bg-background/80 backdrop-blur-lg border border-border/50 rounded-t-lg p-2 shadow-lg">
-      <div className="flex items-center gap-2">
-        <div className="w-12 h-12 bg-muted/60 backdrop-blur-sm rounded flex items-center justify-center">
-          <File className="h-6 w-6 text-muted-foreground" />
-        </div>
-        <div className="flex flex-col min-w-0">
-          <span className="text-sm font-medium truncate max-w-[120px]">{attachment.filename}</span>
-          <span className="text-xs text-muted-foreground">
-            {(attachment.fileSize / 1024).toFixed(1)} KB • Ready to send
-          </span>
-        </div>
-      </div>
-      
-      <Button
-        variant="ghost"
-        size="sm"
-        className="absolute -top-2 -right-2 h-6 w-6 p-0 bg-destructive/90 backdrop-blur-sm text-destructive-foreground hover:bg-destructive/95 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-        onClick={onRemove}
-      >
-        <X className="h-3 w-3" />
-      </Button>
-    </div>
-  );
-}
+
 
  

@@ -15,7 +15,7 @@ export function FileUpload({
   onFileSelect,
   disabled = false,
   children,
-  accept = "image/*,.pdf,.txt,.md,.doc,.docx",
+  accept = "image/*,.pdf,.txt,.md,.doc,.docx,.json,.csv,.xls,.xlsx,.rtf",
   maxSize = 10 * 1024 * 1024, // 10MB default
   maxFiles = 5,
 }: FileUploadProps) {
@@ -47,8 +47,14 @@ export function FileUpload({
         'image/jpeg', 'image/png', 'image/gif', 'image/webp',
         'application/pdf',
         'text/plain', 'text/markdown',
+        'application/json',
+        'text/csv',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/rtf',
+        'application/rtf'
       ];
 
       if (!allowedTypes.some(type => file.type.startsWith(type.split('/')[0]) || file.type === type)) {

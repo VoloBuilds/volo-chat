@@ -465,6 +465,45 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (error) {
       console.error('Failed to send message:', error);
       
+      // Check if this is a provider error with specific handling
+      const isProviderError = error && typeof error === 'object' && 'isProviderError' in error;
+      const statusCode = isProviderError ? (error as any).statusCode : undefined;
+      const provider = isProviderError ? (error as any).provider : undefined;
+      const retryable = isProviderError ? (error as any).retryable : false;
+      
+      if (isProviderError) {
+        // Create an error message for the assistant instead of removing messages
+        let errorMessage = "Sorry, I ran into an error!";
+        
+        if (statusCode === 429) {
+          errorMessage = "Sorry, I ran into a rate limit error! Please try again in a moment.";
+          if (statusCode) {
+            errorMessage += ` (Error: ${statusCode})`;
+          }
+        } else if (statusCode) {
+          errorMessage += ` (Error: ${statusCode})`;
+        }
+        
+        // Update the assistant message with the error
+        set(state => ({
+          messages: {
+            ...state.messages,
+            [chatId]: state.messages[chatId].map(msg =>
+              msg.id === tempAssistantMessageId
+                ? { ...msg, content: errorMessage, isOptimistic: false, isStreaming: false }
+                : msg.id === tempUserMessageId
+                ? { ...msg, isOptimistic: false }
+                : msg
+            )
+          },
+          streamingMessageId: null
+        }));
+        
+        console.log('[CHAT-STORE] Provider error handled with error message:', { statusCode, provider, retryable });
+        return; // Don't throw, we've handled it gracefully
+      }
+      
+      // For non-provider errors, use the original behavior
       // Remove any optimistic messages on error
       set(state => ({
         messages: {

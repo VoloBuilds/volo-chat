@@ -7,6 +7,7 @@ import { cn } from '../../lib/utils';
 import { Copy, Check } from 'lucide-react';
 import { Attachment } from '../../types/chat';
 import { getFile } from '../../lib/serverComm';
+import { FileAttachment } from './FileAttachment';
 
 interface MessageBubbleProps {
   message: Message;
@@ -50,10 +51,11 @@ export function MessageBubble({ message, isLast }: MessageBubbleProps) {
     return (
       <div className="mt-3 space-y-2">
         {nonImageAttachments.map((attachment, index) => (
-          <div key={attachment.id || index} className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg text-sm">
-            <div className="w-4 h-4 bg-muted-foreground/20 rounded" />
-            <span className="truncate">{attachment.filename}</span>
-          </div>
+          <FileAttachment
+            key={attachment.id || index}
+            attachment={attachment}
+            variant="compact"
+          />
         ))}
       </div>
     );

@@ -207,36 +207,22 @@ export class OpenRouterProvider extends BaseAIProvider {
 
   async *streamMessage(model: string, messages: ChatMessage[]): AsyncIterableIterator<string> {
     try {
+      console.log(`[OPENROUTER] Starting streaming for model: ${model}`);
+      
       const client = this.getClient();
-      const openAIMessages = messages.map(msg => this.formatMessageContent(msg));
+      const formattedMessages = messages.map(msg => this.formatMessageContent(msg));
 
-      // Check if any messages contain file attachments to add plugin configuration
-      const hasFileAttachments = messages.some(msg => 
-        msg.attachments?.some(att => 
-          att.type === 'pdf' || att.type === 'text' || att.mimeType === 'application/pdf'
-        )
-      );
+      console.log(`[OPENROUTER] Formatted ${formattedMessages.length} messages for streaming`);
 
-      const requestParams: any = {
-        model,
-        messages: openAIMessages,
-        temperature: 0.7,
+      const stream = await client.chat.completions.create({
+        model: model,
+        messages: formattedMessages,
         stream: true,
-      };
+        temperature: 0.7,
+        max_tokens: 4000,
+      });
 
-      // Add plugin configuration for PDF processing if needed
-      if (hasFileAttachments) {
-        requestParams.plugins = [
-          {
-            id: 'file-parser',
-            pdf: {
-              engine: 'pdf-text', // Use free text extraction by default
-            },
-          },
-        ];
-      }
-
-      const stream = await client.chat.completions.create(requestParams) as any;
+      console.log(`[OPENROUTER] Stream created successfully for model: ${model}`);
 
       for await (const chunk of stream) {
         const content = chunk.choices[0]?.delta?.content;
@@ -247,12 +233,23 @@ export class OpenRouterProvider extends BaseAIProvider {
     } catch (error) {
       console.error('OpenRouter streaming error:', error);
       
+      // Extract status code and error details
+      const statusCode = (error as any)?.status || (error as any)?.statusCode;
+      const errorCode = (error as any)?.code;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
       const providerError: ProviderError = {
         name: 'ProviderError',
-        message: `OpenRouter streaming error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: `OpenRouter streaming error: ${errorMessage}`,
         provider: 'openrouter',
         retryable: this.isRetryableError(error),
+        statusCode: statusCode,
       };
+      
+      // Add additional context for specific error types
+      if (statusCode === 429) {
+        providerError.message = `OpenRouter streaming error: ${errorCode || statusCode} ${errorMessage}`;
+      }
       
       throw providerError;
     }
@@ -325,30 +322,31 @@ export class OpenRouterProvider extends BaseAIProvider {
             detail: 'auto' // Let OpenRouter decide the detail level
           },
         });
-      } else if (attachment.type === 'text') {
-        // Handle text attachments by including them inline as text content
-        // OpenRouter doesn't support text/plain file uploads
+      } else if (attachment.type === 'text' || this.isTextBasedFile(attachment.mimeType)) {
+        // Handle text-based attachments by including them inline as text content
+        // This includes text files, JSON, CSV, and other readable formats
         if (attachment.data) {
           let textContent: string;
           
-          if (attachment.data.startsWith('data:text/plain;base64,')) {
-            // Decode base64 text
+          if (attachment.data.startsWith('data:') && attachment.data.includes('base64,')) {
+            // Decode base64 content
             try {
               textContent = atob(attachment.data.split(',')[1]);
             } catch (error) {
-              console.warn(`[OPENROUTER] Failed to decode base64 text attachment:`, error);
+              console.warn(`[OPENROUTER] Failed to decode base64 attachment:`, error);
               textContent = attachment.data;
             }
           } else if (attachment.data.startsWith('http://') || attachment.data.startsWith('https://')) {
             // For URLs, we can't directly include the content, so reference it
-            console.warn(`[OPENROUTER] Text attachment from URL not directly supported: ${attachment.data}`);
+            console.warn(`[OPENROUTER] File attachment from URL not directly supported: ${attachment.data}`);
             textContent = `[Referenced file: ${attachment.data}]`;
           } else {
             // Assume it's already plain text
             textContent = attachment.data;
           }
 
-          console.log(`[OPENROUTER] Adding text attachment as inline content:`, {
+          const fileType = this.getFileTypeDisplay(attachment.mimeType);
+          console.log(`[OPENROUTER] Adding ${fileType} attachment as inline content:`, {
             type: attachment.type,
             mimeType: attachment.mimeType,
             textLength: textContent.length
@@ -356,7 +354,7 @@ export class OpenRouterProvider extends BaseAIProvider {
 
           contentParts.push({
             type: 'text',
-            text: `\n\n--- Attached Text Content ---\n${textContent}\n--- End Attached Content ---\n`,
+            text: `\n\n--- Attached ${fileType} Content ---\n${textContent}\n--- End Attached Content ---\n`,
           });
         }
       } else if (attachment.type === 'pdf' || attachment.mimeType === 'application/pdf') {
@@ -406,6 +404,44 @@ export class OpenRouterProvider extends BaseAIProvider {
       role: message.role as 'user' | 'assistant' | 'system',
       content: contentParts,
     };
+  }
+
+  private isTextBasedFile(mimeType?: string): boolean {
+    if (!mimeType) return false;
+    
+    const textBasedTypes = [
+      'text/plain',
+      'text/markdown',
+      'application/json',
+      'text/csv',
+      'text/rtf',
+      'application/rtf'
+    ];
+    
+    return textBasedTypes.includes(mimeType) || mimeType.startsWith('text/');
+  }
+
+  private getFileTypeDisplay(mimeType?: string): string {
+    if (!mimeType) return 'File';
+    
+    switch (mimeType) {
+      case 'application/json':
+        return 'JSON';
+      case 'text/csv':
+        return 'CSV';
+      case 'text/markdown':
+        return 'Markdown';
+      case 'text/rtf':
+      case 'application/rtf':
+        return 'RTF';
+      case 'text/plain':
+        return 'Text';
+      default:
+        if (mimeType.startsWith('text/')) {
+          return 'Text';
+        }
+        return 'File';
+    }
   }
 
   private isRetryableError(error: any): boolean {

@@ -11,7 +11,7 @@ const chatManagement = new Hono();
 // GET /api/chats - List user chats
 chatManagement.get('/', async (c) => {
   try {
-    const user = c.get('user');
+  const user = c.get('user');
     if (!user) {
       return c.json({ error: 'Unauthorized' }, 401);
     }

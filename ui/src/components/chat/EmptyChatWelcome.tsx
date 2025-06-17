@@ -123,7 +123,7 @@ export function EmptyChatWelcome() {
               key={label}
               onClick={() => handleCategoryClick(label)}
               variant={selectedCategory === label ? "default" : "outline"}
-              className="px-4 py-3 sm:px-6 text-sm sm:text-base"
+              className="px-4 py-3 sm:px-6 text-sm sm:text-base border"
               disabled={isCreatingChat}
             >
               <Icon className="w-4 h-4 mr-2" />

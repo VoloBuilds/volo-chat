@@ -83,7 +83,7 @@ export default function SharedChat() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background p-4">
+      <div className="min-h-mobile-screen bg-background p-4">
         <div className="max-w-4xl mx-auto">
           <div className="mb-6">
             <Skeleton className="h-8 w-48 mb-2" />
@@ -113,7 +113,7 @@ export default function SharedChat() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-mobile-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
             <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
@@ -136,7 +136,7 @@ export default function SharedChat() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-mobile-screen bg-background">
       {/* Header */}
       <div className="border-b bg-card/50 backdrop-blur">
         <div className="max-w-4xl mx-auto p-4">

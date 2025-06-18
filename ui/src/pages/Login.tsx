@@ -12,7 +12,7 @@ export function Login() {
   }, [resetSignOutFlag]);
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen"></div>;
+    return <div className="flex items-center justify-center min-h-mobile-screen"></div>;
   }
 
   // If user is already authenticated and not anonymous, redirect to chat
@@ -21,7 +21,7 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-mobile-screen flex items-center justify-center bg-background p-4">
       <LoginForm />
     </div>
   );

@@ -22,7 +22,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
   // Don't redirect while still loading or if user exists (including anonymous users)
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen"></div>;
+    return <div className="flex items-center justify-center min-h-mobile-screen"></div>;
   }
 
   if (!user) {
@@ -104,12 +104,12 @@ function AppContent() {
   }, [user, loading, clearCurrentNavigation, navigate, location.pathname]);
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen"></div>;
+    return <div className="flex items-center justify-center min-h-mobile-screen"></div>;
   }
 
   return (
     <SidebarProvider>
-      <div className="flex flex-col w-full min-h-screen bg-background">
+      <div className="flex flex-col w-full min-h-mobile-screen bg-background">
         <Routes>
           {/* Public login route */}
           <Route path="/login" element={<Login />} />

@@ -10,6 +10,10 @@
   -moz-osx-font-smoothing: grayscale;
   --radius: 0.5rem;
   
+  /* Dynamic viewport height support for mobile browsers */
+  --vh: 1vh;
+  --mobile-vh: 100vh;
+  
   --background: oklch(0.98 0.002 286);
   --foreground: oklch(0.25 0.008 286);
   --card: oklch(0.985 0.001 286);
@@ -358,6 +362,47 @@ button {
   
   .prose code {
     font-size: 0.75rem; /* 12px */
+  }
+}
+
+/* Mobile viewport height utilities */
+@supports (height: 100dvh) {
+  :root {
+    --mobile-vh: 100dvh;
+  }
+}
+
+@supports (height: 100svh) {
+  :root {
+    --mobile-vh: 100svh;
+  }
+}
+
+/* Utility classes for mobile-aware heights */
+.min-h-mobile-screen {
+  min-height: var(--mobile-vh);
+}
+
+.h-mobile-screen {
+  height: var(--mobile-vh);
+}
+
+.max-h-mobile-screen {
+  max-height: var(--mobile-vh);
+}
+
+/* JavaScript fallback for older browsers */
+@media (max-width: 768px) {
+  .min-h-mobile-screen {
+    min-height: calc(var(--vh, 1vh) * 100);
+  }
+  
+  .h-mobile-screen {
+    height: calc(var(--vh, 1vh) * 100);
+  }
+  
+  .max-h-mobile-screen {
+    max-height: calc(var(--vh, 1vh) * 100);
   }
 }
 

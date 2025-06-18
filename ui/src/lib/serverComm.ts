@@ -2,7 +2,7 @@ import { getAuth } from 'firebase/auth';
 import { app } from './firebase';
 import { AIModel, Chat, Message, Attachment, BranchResponse, ChatMetadata, SharedChatResponse } from '../types/chat';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://volo-chat-api.volobuilds1.workers.dev/';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://volo-chat-api.volobuilds1.workers.dev';
 
 class APIError extends Error {
   constructor(public status: number, message: string) {

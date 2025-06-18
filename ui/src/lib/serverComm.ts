@@ -1,6 +1,6 @@
 import { getAuth } from 'firebase/auth';
 import { app } from './firebase';
-import { AIModel, Chat, Message, Attachment, BranchResponse, ChatMetadata } from '../types/chat';
+import { AIModel, Chat, Message, Attachment, BranchResponse, ChatMetadata, SharedChatResponse } from '../types/chat';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 
@@ -20,7 +20,7 @@ async function getAuthToken(): Promise<string | null> {
   return user.getIdToken();
 }
 
-async function fetchWithAuth(
+export async function fetchWithAuth(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> {
@@ -208,6 +208,26 @@ export async function generateTitle(data: {
   return result;
 }
 
+export async function cancelStream(data: {
+  chatId: string;
+  partialContent: string;
+  modelId: string;
+}): Promise<{ message: any; cancelled: boolean }> {
+  const response = await fetchWithAuth(`/api/v1/chats/${data.chatId}/cancel-stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      partialContent: data.partialContent,
+      modelId: data.modelId
+    }),
+  });
+  const result = await response.json();
+  // Backend returns { message: {...}, cancelled: true }
+  return result;
+}
+
 // Enhanced debugging for streaming
 const debugStreaming = (message: string, data?: any) => {
   console.log(`[STREAMING] ${message}`, data);
@@ -219,6 +239,7 @@ export function streamChatResponse(data: {
   content: string;
   modelId: string;
   attachments?: Attachment[];
+  abortController?: AbortController;
 }): Promise<AsyncIterableIterator<string>> {
   return new Promise<AsyncIterableIterator<string>>((resolve, reject) => {
     const chunks: string[] = [];
@@ -248,6 +269,7 @@ export function streamChatResponse(data: {
             modelId: data.modelId,
             attachments: data.attachments
           }),
+          signal: data.abortController?.signal,
         });
 
         if (!response.ok) {
@@ -324,22 +346,79 @@ export function streamChatResponse(data: {
                             isComplete = true;
                             return;
                             
+                          case 'stream_cancelled':
+                            // AI response cancelled
+                            debugStreaming('Stream cancelled', { 
+                              messageId: eventData.message?.id,
+                              totalChunks: chunks.length,
+                              totalLength: chunks.join('').length,
+                              cancelled: eventData.cancelled
+                            });
+                            isComplete = true;
+                            return;
+                            
                           case 'stream_error':
-                            // Create a structured error with provider details
-                            const enhancedError = new Error(eventData.error || 'Streaming error occurred');
-                            (enhancedError as any).statusCode = eventData.statusCode;
-                            (enhancedError as any).provider = eventData.provider;
-                            (enhancedError as any).retryable = eventData.retryable;
-                            (enhancedError as any).isProviderError = true;
-                            throw enhancedError;
+                            // Log the full error data for debugging
+                            debugStreaming('Received stream_error event', eventData);
+                            
+                            // Instead of throwing, treat the error as the final message content
+                            const errorMessage = eventData.error || 'An error occurred during streaming';
+                            chunks.push(errorMessage);
+                            
+                            // Mark stream as complete
+                            isComplete = true;
+                            return;
                         }
                       }
                     } catch (parseError) {
-                      // Log more detailed parse error info
+                      // Handle JSON parsing failures more robustly
                       console.warn('Failed to parse SSE event:', {
                         line: line,
-                        error: parseError instanceof Error ? parseError.message : parseError
+                        jsonData: line.slice(6).trim(),
+                        error: parseError instanceof Error ? parseError.message : parseError,
                       });
+                      
+                      // If this is a stream_error line that failed to parse, extract the error message
+                      if (line.includes('"type":"stream_error"')) {
+                        console.warn('Detected malformed stream_error event, attempting extraction');
+                        
+                        // Enhanced error extraction with multiple fallback patterns
+                        let extractedError = 'Error occurred during streaming';
+                        
+                        // Try multiple regex patterns to extract the error message
+                        const patterns = [
+                          // Standard JSON error field pattern
+                          /"error":"([^"]+(?:\\.[^"]*)*?)"/,
+                          // Fallback pattern for truncated JSON
+                          /"error":"([^"]*)/,
+                          // Look for any error-like content in the message
+                          /(\d{3}\s+[^"]+(?:https?:\/\/[^\s"]+)?[^"]*)/
+                        ];
+                        
+                        for (const pattern of patterns) {
+                          const match = line.match(pattern);
+                          if (match && match[1]) {
+                            // Unescape JSON escape sequences
+                            extractedError = match[1]
+                              .replace(/\\"/g, '"')
+                              .replace(/\\\\/g, '\\')
+                              .replace(/\\n/g, '\n')
+                              .replace(/\\r/g, '\r')
+                              .replace(/\\t/g, '\t');
+                            break;
+                          }
+                        }
+                        
+                        console.log('Extracted error message:', extractedError);
+                        
+                        // Instead of throwing, treat the extracted error as final message content
+                        chunks.push(extractedError);
+                        isComplete = true;
+                        return;
+                      }
+                      
+                      // For other JSON parsing errors, continue processing - don't break the stream
+                      console.log('Continuing with non-error JSON parsing failure');
                     }
                   } else if (line.trim() === '') {
                     // Empty line indicates end of SSE event - this is normal
@@ -381,6 +460,21 @@ export function streamChatResponse(data: {
         resolve(iterator);
 
       } catch (error) {
+        // Handle abort/cancellation gracefully
+        if (error instanceof Error && error.name === 'AbortError') {
+          debugStreaming('Stream aborted by user', error);
+          isComplete = true;
+          // Create a special iterator that indicates cancellation
+          const cancelledIterator: AsyncIterableIterator<string> = {
+            [Symbol.asyncIterator]: function() { return this; },
+            next: async function(): Promise<IteratorResult<string>> {
+              return { value: undefined, done: true };
+            }
+          };
+          resolve(cancelledIterator);
+          return;
+        }
+        
         debugStreaming('HTTP streaming failed, falling back', { error: error instanceof Error ? error.message : error });
         resolve(streamChatResponseFallback(data));
       }
@@ -518,8 +612,6 @@ export async function processFile(fileId: string): Promise<{ processedText: stri
   };
 }
 
-
-
 // User endpoints
 export async function getCurrentUser() {
   const response = await fetchWithAuth('/api/v1/protected/me');
@@ -606,6 +698,52 @@ export async function getChatMetadata(chatId: string): Promise<ChatMetadata> {
   return response.json();
 }
 
+// Chat sharing functions
+export async function shareChat(chatId: string): Promise<{ chat: Chat; shareUrl: string }> {
+  const response = await fetchWithAuth(`/api/v1/chats/${chatId}/share`, {
+    method: 'POST',
+  });
+  const result = await response.json();
+  return {
+    chat: result.chat,
+    shareUrl: result.shareUrl,
+  };
+}
+
+export async function revokeShareChat(chatId: string): Promise<void> {
+  await fetchWithAuth(`/api/v1/chats/${chatId}/share`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getSharedChat(shareId: string): Promise<SharedChatResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/shared/${shareId}`);
+  
+  if (!response.ok) {
+    throw new APIError(response.status, 'Failed to fetch shared chat');
+  }
+  
+  return response.json();
+}
+
+export async function getSharedChatFile(shareId: string, fileId: string): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/shared/${shareId}/files/${fileId}`);
+  
+  if (!response.ok) {
+    throw new APIError(response.status, 'Failed to fetch shared chat file');
+  }
+  
+  return response.blob();
+}
+
+export async function importSharedChat(shareId: string): Promise<Chat> {
+  const response = await fetchWithAuth(`/api/v1/shared/${shareId}/import`, {
+    method: 'POST',
+  });
+  const result = await response.json();
+  return result.chat;
+}
+
 // Helper for generating titles
 export function generateChatTitle(originalTitle: string, type: 'shared' | 'branched'): string {
   const suffix = type === 'shared' ? '(Shared)' : '(Branch)';
@@ -642,6 +780,7 @@ export const api = {
   sendMessage,
   updateMessage,
   deleteMessage,
+  retryMessage,
   
   // Chat messaging
   sendChatMessage,
@@ -649,6 +788,7 @@ export const api = {
   streamChatResponseFallback,
   createChatWebSocket,
   generateTitle,
+  cancelStream,
   
   // Files
   uploadFile,
@@ -675,4 +815,245 @@ export const api = {
   branchChatFromMessage,
   getChatBranches,
   getChatMetadata,
+  
+  // Chat sharing
+  shareChat,
+  revokeShareChat,
+  getSharedChat,
+  getSharedChatFile,
+  importSharedChat,
 }; 
+
+export async function retryMessage(data: {
+  chatId: string;
+  messageId: string;
+}): Promise<AsyncIterableIterator<string>> {
+  return new Promise<AsyncIterableIterator<string>>((resolve, reject) => {
+    const chunks: string[] = [];
+    let isComplete = false;
+    let currentIndex = 0;
+    let chunkCount = 0;
+
+    debugStreaming('Starting retry streaming', { 
+      chatId: data.chatId, 
+      messageId: data.messageId 
+    });
+
+    // Use HTTP-based streaming (Server-Sent Events) for retry
+    const startRetryStreaming = async () => {
+      try {
+        const response = await fetchWithAuth(`/api/v1/chats/${data.chatId}/messages/${data.messageId}/retry`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'text/event-stream',
+          },
+        });
+
+        if (!response.ok) {
+          // Check if this is a non-streaming response (like image generation)
+          if (response.headers.get('content-type')?.includes('application/json')) {
+            const result = await response.json();
+            if (result.type === 'image_generation' || result.type === 'image_generation_error') {
+              // For image generation, return the content as a single chunk
+              chunks.push(result.message.content);
+              isComplete = true;
+              
+              const iterator: AsyncIterableIterator<string> = {
+                [Symbol.asyncIterator]: function() { return this; },
+                next: async function(): Promise<IteratorResult<string>> {
+                  if (currentIndex < chunks.length) {
+                    const value = chunks[currentIndex];
+                    currentIndex++;
+                    return { value, done: false };
+                  } else {
+                    return { value: undefined, done: true };
+                  }
+                }
+              };
+              
+              resolve(iterator);
+              return;
+            }
+          }
+          
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error('No response body reader available');
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = ''; // Buffer to handle incomplete SSE events
+        
+        // Process the stream
+        const processStream = async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              
+              if (done) {
+                debugStreaming('Retry stream reading complete');
+                isComplete = true;
+                break;
+              }
+
+              // Add new data to buffer
+              buffer += decoder.decode(value, { stream: true });
+              
+              // Process complete lines from buffer
+              const lines = buffer.split('\n');
+              
+              // Keep the last incomplete line in buffer
+              buffer = lines.pop() || '';
+              
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  try {
+                    const jsonData = line.slice(6).trim();
+                    if (jsonData) {
+                      const eventData = JSON.parse(jsonData);
+                      
+                      switch (eventData.type) {
+                        case 'stream_chunk':
+                          // New content chunk received
+                          if (eventData.chunk) {
+                            chunkCount++;
+                            chunks.push(eventData.chunk);
+                          }
+                          break;
+                          
+                        case 'stream_end':
+                          // AI response complete
+                          debugStreaming('Retry stream ended', { 
+                            messageId: eventData.message?.id,
+                            totalChunks: chunks.length,
+                            totalLength: chunks.join('').length
+                          });
+                          isComplete = true;
+                          return;
+                          
+                        case 'stream_cancelled':
+                          // AI response cancelled
+                          debugStreaming('Retry stream cancelled', { 
+                            messageId: eventData.message?.id,
+                            totalChunks: chunks.length,
+                            totalLength: chunks.join('').length,
+                            cancelled: eventData.cancelled
+                          });
+                          isComplete = true;
+                          return;
+                          
+                        case 'stream_error':
+                          // Log the full error data for debugging
+                          debugStreaming('Received retry stream_error event', eventData);
+                          
+                          // Instead of throwing, treat the error as the final message content
+                          const errorMessage = eventData.error || 'An error occurred during retry';
+                          chunks.push(errorMessage);
+                          
+                          // Mark stream as complete
+                          isComplete = true;
+                          return;
+                      }
+                    }
+                  } catch (parseError) {
+                    // Handle JSON parsing failures more robustly
+                    console.warn('Failed to parse retry SSE event:', {
+                      line: line,
+                      jsonData: line.slice(6).trim(),
+                      error: parseError instanceof Error ? parseError.message : parseError,
+                    });
+                    
+                    // If this is a stream_error line that failed to parse, extract the error message
+                    if (line.includes('"type":"stream_error"')) {
+                      console.warn('Detected malformed retry stream_error event, attempting extraction');
+                      
+                      // Enhanced error extraction with multiple fallback patterns
+                      let extractedError = 'Error occurred during retry';
+                      
+                      // Try multiple regex patterns to extract the error message
+                      const patterns = [
+                        // Standard JSON error field pattern
+                        /"error":"([^"]+(?:\\.[^"]*)*?)"/,
+                        // Fallback pattern for truncated JSON
+                        /"error":"([^"]*)/,
+                        // Look for any error-like content in the message
+                        /(\d{3}\s+[^"]+(?:https?:\/\/[^\s"]+)?[^"]*)/
+                      ];
+                      
+                      for (const pattern of patterns) {
+                        const match = line.match(pattern);
+                        if (match && match[1]) {
+                          // Unescape JSON escape sequences
+                          extractedError = match[1]
+                            .replace(/\\"/g, '"')
+                            .replace(/\\\\/g, '\\')
+                            .replace(/\\n/g, '\n')
+                            .replace(/\\r/g, '\r')
+                            .replace(/\\t/g, '\t');
+                          break;
+                        }
+                      }
+                      
+                      console.log('Extracted retry error message:', extractedError);
+                      
+                      // Instead of throwing, treat the extracted error as final message content
+                      chunks.push(extractedError);
+                      isComplete = true;
+                      return;
+                    }
+                    
+                    // For other JSON parsing errors, continue processing - don't break the stream
+                    console.log('Continuing with non-error JSON parsing failure in retry');
+                  }
+                } else if (line.trim() === '') {
+                  // Empty line indicates end of SSE event - this is normal
+                  continue;
+                }
+              }
+            }
+          } catch (streamError) {
+            console.error('Retry stream processing error:', streamError);
+            reject(streamError);
+          }
+        };
+
+        // Start processing the stream
+        processStream();
+
+        // Return the async iterator
+        const iterator: AsyncIterableIterator<string> = {
+          [Symbol.asyncIterator]: function() { return this; },
+          next: async function(): Promise<IteratorResult<string>> {
+            while (currentIndex < chunks.length || !isComplete) {
+              if (currentIndex < chunks.length) {
+                const value = chunks[currentIndex];
+                currentIndex++;
+                return { value, done: false };
+              } else {
+                // Wait a bit before checking for new chunks
+                await new Promise(resolve => setTimeout(resolve, 10));
+              }
+            }
+            debugStreaming('Retry iterator complete', { 
+              totalChunksProcessed: currentIndex,
+              totalChunksReceived: chunks.length 
+            });
+            return { value: undefined, done: true };
+          }
+        };
+        
+        resolve(iterator);
+
+      } catch (error) {
+        debugStreaming('Retry streaming failed', { error: error instanceof Error ? error.message : error });
+        reject(error);
+      }
+    };
+
+    startRetryStreaming();
+  });
+} 

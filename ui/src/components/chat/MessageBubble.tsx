@@ -7,9 +7,9 @@ import { Markdown } from '../ui/markdown';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { cn } from '../../lib/utils';
 import { useIsMobile } from '../../hooks/use-mobile';
-import { Copy, Check, GitBranch } from 'lucide-react';
+import { Copy, Check, GitBranch, RotateCcw } from 'lucide-react';
 import { Attachment } from '../../types/chat';
-import { getFile, api } from '../../lib/serverComm';
+import { getFile, getSharedChatFile, api } from '../../lib/serverComm';
 import { FileAttachment } from './FileAttachment';
 
 // Streaming Markdown component with magical smooth reveals
@@ -19,6 +19,14 @@ function StreamingMarkdown({ content, isStreaming }: { content: string; isStream
   const lastAnimationRef = useRef(0);
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isMobile = useIsMobile();
+  
+  // Check if this is an error message - simplified approach
+  const isErrorMessage = content && (
+    content.toLowerCase().includes('error') ||
+    content.includes('403') ||
+    content.includes('401') ||
+    content.includes('429')
+  );
   
   useEffect(() => {
     const currentLength = content?.length || 0;
@@ -63,8 +71,6 @@ function StreamingMarkdown({ content, isStreaming }: { content: string; isStream
     };
   }, [content, isStreaming, prevLength]);
 
-  // Debug logging
-
   return (
     <div className={cn(
       "prose prose-neutral dark:prose-invert max-w-none min-w-0",
@@ -85,7 +91,9 @@ function StreamingMarkdown({ content, isStreaming }: { content: string; isStream
       {content ? (
         <div className={cn(
           "streaming-content-wrapper min-w-0 max-w-full",
-          isContentGrowing && "animate-bottom-reveal"
+          isContentGrowing && "animate-bottom-reveal",
+          // Special styling for error messages
+          isErrorMessage && "border-l-4 border-red-500 pl-4 bg-red-50 dark:bg-red-950/20 rounded-r-md py-2 -ml-4"
         )}>
           <Markdown content={content} />
         </div>
@@ -111,16 +119,23 @@ interface MessageBubbleProps {
   canBranch?: boolean;
   onBranch?: (newChatId: string) => void;
   isFirst?: boolean;
+  sharedChatId?: string; // For shared chat context
+  canRetry?: boolean; // Whether retry is allowed
+  onRetry?: (messageId: string) => void; // Retry callback
 }
 
-export function MessageBubble({ message, isLast, canBranch = true, onBranch, isFirst = false }: MessageBubbleProps) {
+export function MessageBubble({ message, isLast, canBranch = true, onBranch, isFirst = false, sharedChatId, canRetry = false, onRetry }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [branching, setBranching] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   
   // Don't allow branching from temporary messages (streaming/optimistic updates)
   const canActuallyBranch = canBranch && !message.id.startsWith('temp-') && !message.isStreaming;
+  
+  // Don't allow retry from temporary messages or if currently streaming or if in shared context
+  const canActuallyRetry = canRetry && !message.id.startsWith('temp-') && !message.isStreaming && !sharedChatId;
 
   const handleCopy = async () => {
     try {
@@ -154,6 +169,20 @@ export function MessageBubble({ message, isLast, canBranch = true, onBranch, isF
     }
   };
 
+  const handleRetry = async () => {
+    if (retrying || !onRetry) return;
+    
+    setRetrying(true);
+    try {
+      await onRetry(message.id);
+    } catch (error) {
+      console.error('Failed to retry message:', error);
+      toast.error('Failed to retry message. Please try again.');
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   const renderImageAttachments = () => {
     if (!message.attachments || message.attachments.length === 0) return null;
     
@@ -163,7 +192,12 @@ export function MessageBubble({ message, isLast, canBranch = true, onBranch, isF
     return (
       <div className="mb-3 space-y-2">
         {imageAttachments.map((attachment, index) => (
-          <MessageImageAttachment key={attachment.id || index} attachment={attachment} messageId={message.id} />
+          <MessageImageAttachment 
+            key={attachment.id || index} 
+            attachment={attachment} 
+            messageId={message.id}
+            sharedChatId={sharedChatId}
+          />
         ))}
       </div>
     );
@@ -289,6 +323,18 @@ export function MessageBubble({ message, isLast, canBranch = true, onBranch, isF
                 <Copy className="h-3 w-3" />
               )}
             </Button>
+            {canActuallyRetry && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0 bg-background/80 backdrop-blur hover:bg-background text-xs"
+                onClick={handleRetry}
+                disabled={retrying}
+                title="Retry this message"
+              >
+                <RotateCcw className="h-3 w-3" />
+              </Button>
+            )}
             {canActuallyBranch && (
               <Button
                 variant="ghost"
@@ -308,35 +354,44 @@ export function MessageBubble({ message, isLast, canBranch = true, onBranch, isF
 }
 
 // Component for displaying images in messages (larger size)
-function MessageImageAttachment({ attachment, messageId: _messageId }: { attachment: Attachment; messageId: string }) {
+function MessageImageAttachment({ attachment, messageId: _messageId, sharedChatId }: { attachment: Attachment; messageId: string; sharedChatId?: string }) {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [persistedBlobUrl, setPersistedBlobUrl] = useState<string | null>(null);
   const isMobile = useIsMobile();
 
   useEffect(() => {
     const setupImageSrc = async () => {
-      // Priority 1: If we have the actual File object (for optimistic/pending uploads)
+      // Priority 1: If we already have a persisted blob URL from initial upload, keep using it
+      if (persistedBlobUrl) {
+        setImageSrc(persistedBlobUrl);
+        return;
+      }
+
+      // Priority 2: If we have the actual File object (for optimistic/pending uploads)
       if (attachment.file && attachment.fileType.startsWith('image/')) {
         const blobUrl = URL.createObjectURL(attachment.file);
         setImageSrc(blobUrl);
+        setPersistedBlobUrl(blobUrl); // Persist this blob URL
         return;
       }
 
-      // Priority 2: If we have a previewUrl (existing blob URL)
+      // Priority 3: If we have a previewUrl (existing blob URL)
       if (attachment.previewUrl) {
         setImageSrc(attachment.previewUrl);
+        setPersistedBlobUrl(attachment.previewUrl); // Persist this as well
         return;
       }
 
-      // Priority 3: If we have a direct URL
+      // Priority 4: If we have a direct URL
       if (attachment.url) {
         setImageSrc(attachment.url);
         return;
       }
 
-      // Priority 4: If we have a file ID, try to fetch from server
+      // Priority 5: If we have a file ID, try to fetch from server (only if no persisted blob)
       if (attachment.id && 
           !attachment.id.startsWith('temp-') && 
           !attachment.id.startsWith('stable-')) {
@@ -351,7 +406,15 @@ function MessageImageAttachment({ attachment, messageId: _messageId }: { attachm
           setError(false);
           
           try {
-            const blob = await getFile(attachment.id);
+            let blob: Blob;
+            
+            // Use shared chat file endpoint if in shared context
+            if (sharedChatId) {
+              blob = await getSharedChatFile(sharedChatId, attachment.id);
+            } else {
+              blob = await getFile(attachment.id);
+            }
+            
             const blobUrl = URL.createObjectURL(blob);
             setImageSrc(blobUrl);
           } catch (err) {
@@ -366,22 +429,22 @@ function MessageImageAttachment({ attachment, messageId: _messageId }: { attachm
 
     setupImageSrc();
 
-    // Cleanup function
+    // Cleanup function - only clean up if we created the blob URL
     return () => {
       if (imageSrc && imageSrc.startsWith('blob:') && attachment.file) {
         URL.revokeObjectURL(imageSrc);
       }
     };
-  }, [attachment.id, attachment.file, attachment.previewUrl, attachment.url, attachment.status]);
+  }, [attachment.id, attachment.file, attachment.previewUrl, attachment.url, attachment.status, persistedBlobUrl]);
 
   // Cleanup blob URL when component unmounts
   useEffect(() => {
     return () => {
-      if (imageSrc && imageSrc.startsWith('blob:')) {
-        URL.revokeObjectURL(imageSrc);
+      if (persistedBlobUrl && persistedBlobUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(persistedBlobUrl);
       }
     };
-  }, []);
+  }, [persistedBlobUrl]);
 
   const handleImageClick = () => {
     if (imageSrc) {

@@ -1,6 +1,10 @@
 import OpenAI from 'openai';
 import { BaseAIProvider } from './BaseProvider';
 import { AIModel, ChatMessage, ProviderError } from '../../types/ai';
+import { UserApiKeyService } from '../UserApiKeyService';
+import { getDatabase } from '../../lib/db-cloudflare';
+import { users } from '../../schema';
+import { eq } from 'drizzle-orm';
 
 interface OpenRouterModel {
   id: string;
@@ -25,16 +29,14 @@ export class OpenRouterProvider extends BaseAIProvider {
   name = 'openrouter';
   models: AIModel[] = [];
   private client: OpenAI | null = null;
+  private userClients: Map<string, OpenAI> = new Map(); // User-specific clients
   private modelCache: Map<string, AIModel[]> = new Map();
   private lastModelFetch = 0;
   private readonly CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
   constructor() {
     super();
-    // Initialize models asynchronously
-    this.initializeModels().catch(error => {
-      console.warn('Failed to initialize OpenRouter models:', error);
-    });
+    // Models will be initialized lazily when first needed
   }
 
   private async initializeModels(): Promise<void> {
@@ -158,13 +160,134 @@ export class OpenRouterProvider extends BaseAIProvider {
     return this.client;
   }
 
-  async sendMessage(model: string, messages: ChatMessage[]): Promise<string> {
+  /**
+   * Get user-specific API key, fallback to system key
+   */
+  async getUserApiKey(userId?: string): Promise<string | null> {
+    if (!userId) {
+      return this.getApiKey();
+    }
+
     try {
-      const client = this.getClient();
-      const openAIMessages = messages.map(msg => this.formatMessageContent(msg));
+      // Try to get user's API key first
+      const userKey = await UserApiKeyService.getUserApiKey(userId);
+      if (userKey) {
+        console.log(`Using user API key for user: ${userId}`);
+        return userKey;
+      }
+    } catch (error) {
+      console.warn(`Failed to get user API key for ${userId}, falling back to system key:`, error);
+    }
+
+    // Fallback to system key
+    const systemKey = this.getApiKey();
+    if (systemKey) {
+      console.log(`Using system API key for user: ${userId}`);
+    }
+    return systemKey;
+  }
+
+  /**
+   * Get user's custom instructions from database
+   */
+  async getUserCustomInstructions(userId?: string): Promise<string | null> {
+    if (!userId) {
+      return null;
+    }
+
+    try {
+      const db = await getDatabase();
+      const [user] = await db
+        .select({ customInstructions: users.customInstructions })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      return user?.customInstructions || null;
+    } catch (error) {
+      console.warn(`Failed to get custom instructions for user ${userId}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Prepare messages with custom instructions prepended
+   */
+  private async prepareMessagesWithInstructions(messages: ChatMessage[], userId?: string): Promise<ChatMessage[]> {
+    const customInstructions = await this.getUserCustomInstructions(userId);
+    
+    if (!customInstructions?.trim()) {
+      return messages;
+    }
+
+    // Create a system message with custom instructions
+    const systemMessage: ChatMessage = {
+      role: 'system',
+      content: customInstructions.trim(),
+    };
+
+    // If the first message is already a system message, prepend the custom instructions to it
+    if (messages.length > 0 && messages[0].role === 'system') {
+      const existingSystemMessage = messages[0];
+      const combinedContent = `${customInstructions.trim()}\n\n${existingSystemMessage.content}`;
+      
+      return [
+        { ...existingSystemMessage, content: combinedContent },
+        ...messages.slice(1)
+      ];
+    }
+
+    // Otherwise, add the system message at the beginning
+    return [systemMessage, ...messages];
+  }
+
+  /**
+   * Get client for specific user, with fallback to system client
+   */
+  private async getClientForUser(userId?: string): Promise<OpenAI> {
+    if (!userId) {
+      return this.getClient();
+    }
+
+    try {
+      // Check if we have a cached client for this user
+      if (this.userClients.has(userId)) {
+        return this.userClients.get(userId)!;
+      }
+
+      // Try to get user's API key
+      const userApiKey = await this.getUserApiKey(userId);
+      if (!userApiKey) {
+        // No user key available, use system client
+        return this.getClient();
+      }
+
+      // Create user-specific client
+      const userClient = new OpenAI({
+        apiKey: userApiKey,
+        baseURL: 'https://openrouter.ai/api/v1',
+        defaultHeaders: {
+          'HTTP-Referer': process.env.SITE_URL || 'http://localhost:3000',
+          'X-Title': 'Volo Chat',
+        },
+      });
+
+      // Cache the client
+      this.userClients.set(userId, userClient);
+      return userClient;
+    } catch (error) {
+      console.warn(`Failed to create user client for ${userId}, using system client:`, error);
+      return this.getClient();
+    }
+  }
+
+  async sendMessage(model: string, messages: ChatMessage[], userId?: string): Promise<string> {
+    try {
+      const client = await this.getClientForUser(userId);
+      const messagesWithInstructions = await this.prepareMessagesWithInstructions(messages, userId);
+      const openAIMessages = messagesWithInstructions.map(msg => this.formatMessageContent(msg));
 
       // Check if any messages contain file attachments to add plugin configuration
-      const hasFileAttachments = messages.some(msg => 
+      const hasFileAttachments = messagesWithInstructions.some(msg => 
         msg.attachments?.some(att => 
           att.type === 'pdf' || att.type === 'text' || att.mimeType === 'application/pdf'
         )
@@ -194,23 +317,38 @@ export class OpenRouterProvider extends BaseAIProvider {
     } catch (error) {
       console.error('OpenRouter API error:', error);
       
-      const providerError: ProviderError = {
-        name: 'ProviderError',
-        message: `OpenRouter API error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        provider: 'openrouter',
-        retryable: this.isRetryableError(error),
-      };
+      // Extract more meaningful error message
+      let errorMessage = 'Unknown error';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (error && typeof error === 'object') {
+        // Try to extract from the error object
+        const err = error as any;
+        if (err.error?.message) {
+          errorMessage = err.error.message;
+        } else if (err.message) {
+          errorMessage = err.message;
+        }
+      }
+      
+      // Create a proper Error object that extends Error
+      const providerError = new Error(errorMessage);
+      (providerError as any).name = 'ProviderError';
+      (providerError as any).provider = 'openrouter';
+      (providerError as any).retryable = this.isRetryableError(error);
       
       throw providerError;
     }
   }
 
-  async *streamMessage(model: string, messages: ChatMessage[]): AsyncIterableIterator<string> {
+  async *streamMessage(model: string, messages: ChatMessage[], userId?: string): AsyncIterableIterator<string> {
     try {
-      console.log(`[OPENROUTER] Starting streaming for model: ${model}`);
+      console.log(`[OPENROUTER] Starting streaming for model: ${model}${userId ? ` for user: ${userId}` : ''}`);
       
-      const client = this.getClient();
-      const formattedMessages = messages.map(msg => this.formatMessageContent(msg));
+      const client = await this.getClientForUser(userId);
+      const messagesWithInstructions = await this.prepareMessagesWithInstructions(messages, userId);
+      const formattedMessages = messagesWithInstructions.map(msg => this.formatMessageContent(msg));
 
       console.log(`[OPENROUTER] Formatted ${formattedMessages.length} messages for streaming`);
 
@@ -232,24 +370,47 @@ export class OpenRouterProvider extends BaseAIProvider {
       }
     } catch (error) {
       console.error('OpenRouter streaming error:', error);
+      console.error('OpenRouter streaming error details:', JSON.stringify(error, null, 2));
       
       // Extract status code and error details
       const statusCode = (error as any)?.status || (error as any)?.statusCode;
       const errorCode = (error as any)?.code;
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
-      const providerError: ProviderError = {
-        name: 'ProviderError',
-        message: `OpenRouter streaming error: ${errorMessage}`,
-        provider: 'openrouter',
-        retryable: this.isRetryableError(error),
-        statusCode: statusCode,
-      };
+      // Extract more meaningful error message - be more thorough
+      let errorMessage = 'Unknown error';
       
-      // Add additional context for specific error types
-      if (statusCode === 429) {
-        providerError.message = `OpenRouter streaming error: ${errorCode || statusCode} ${errorMessage}`;
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (error && typeof error === 'object') {
+        // Try to extract from the error object - be more comprehensive
+        const err = error as any;
+        
+        // Check various possible locations for the error message
+        if (err.error?.message) {
+          errorMessage = err.error.message;
+        } else if (err.message) {
+          errorMessage = err.message;
+        } else if (err.response?.data?.error?.message) {
+          errorMessage = err.response.data.error.message;
+        } else if (err.response?.data?.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.body?.error?.message) {
+          errorMessage = err.body.error.message;
+        } else if (err.body?.message) {
+          errorMessage = err.body.message;
+        } else if (typeof err.error === 'string') {
+          errorMessage = err.error;
+        }
       }
+      
+      console.log('[OPENROUTER] Extracted error message:', errorMessage);
+      
+      // Create a proper Error object that extends Error
+      const providerError = new Error(errorMessage);
+      (providerError as any).name = 'ProviderError';
+      (providerError as any).provider = 'openrouter';
+      (providerError as any).retryable = this.isRetryableError(error);
+      (providerError as any).statusCode = statusCode;
       
       throw providerError;
     }

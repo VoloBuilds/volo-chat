@@ -13,7 +13,7 @@ import { FileAttachment } from './FileAttachment';
 import { ChatBranchInfo } from './ChatBranchInfo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { cn } from '../../lib/utils';
-import { Send, Paperclip, X, File, ArrowDown } from 'lucide-react';
+import { Send, Paperclip, X, File, ArrowDown, Square } from 'lucide-react';
 import { Attachment } from '../../types/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { requiresAnalysisModel, findBestAnalysisModel, getModelSwitchReason } from '../../utils/modelUtils';
@@ -24,7 +24,7 @@ export function ChatInput({ showScrollButton, onScrollToBottom, autoFocus }: {
   autoFocus?: boolean;
 } = {}) {
   const navigate = useNavigate();
-  const { sendMessage, isStreaming, createChat, availableModels, selectedModelId, selectModel } = useChat();
+  const { sendMessage, isStreaming, createChat, availableModels, selectedModelId, selectModel, cancelStreamingMessage } = useChat();
   const { chatId } = useCurrentChat(); // Get chatId from URL
   const { open: isSidebarOpen, isMobile } = useSidebar();
   const [message, setMessage] = useState('');
@@ -257,7 +257,7 @@ export function ChatInput({ showScrollButton, onScrollToBottom, autoFocus }: {
         </div>
 
         {/* Main input container - glassmorphism overlay design */}
-        <div className="relative bg-background/80 backdrop-blur-lg border rounded-t-2xl shadow-2xl overflow-hidden">
+        <div className="relative bg-background/80 backdrop-blur-lg border border-b-0 rounded-t-2xl shadow-2xl overflow-hidden">
           {/* Message input */}
           <div className="relative">
             <Textarea
@@ -332,20 +332,31 @@ export function ChatInput({ showScrollButton, onScrollToBottom, autoFocus }: {
                 <div className="absolute -inset-px bg-gradient-to-r from-blue-400 via-purple-400 to-blue-400 dark:from-blue-600 dark:via-purple-600 dark:to-blue-600 rounded-full opacity-20 group-hover:opacity-40 dark:opacity-25 dark:group-hover:opacity-55 animate-pulse"></div>
                 <div className="absolute -inset-px bg-gradient-to-r from-blue-300 via-purple-300 to-blue-300 dark:from-blue-500 dark:via-purple-500 dark:to-blue-500 rounded-full animate-spin-slow opacity-8 dark:opacity-10"></div>
                 
-                {/* Disabled overlay */}
-                {(isDisabled || (!message.trim() && attachedFiles.length === 0)) && (
+                {/* Disabled overlay - only show when not streaming and conditions are met */}
+                {!isStreaming && (isDisabled || (!message.trim() && attachedFiles.length === 0)) && (
                   <div className="absolute -inset-px rounded-full bg-black/40 dark:bg-black/60 z-10"></div>
                 )}
                 
-                <Button
-                  onClick={handleSend}
-                  disabled={isDisabled || (!message.trim() && attachedFiles.length === 0)}
-                  variant="outline"
-                  size="sm"
-                  className="relative h-8 w-8 p-0 rounded-full bg-gradient-to-r from-slate-100 via-blue-100 to-slate-50 hover:from-slate-200 hover:via-blue-200 hover:to-slate-100 dark:from-slate-950 dark:via-slate-900/60 dark:to-slate-950 dark:hover:from-slate-950 dark:hover:via-slate-900/80 dark:hover:to-slate-950 bg-[length:200%_200%] animate-gradient-shift text-slate-800 dark:text-white border border-slate-200 dark:border-slate-800 shadow-md hover:shadow-lg dark:shadow-lg dark:hover:shadow-xl transition-all duration-200 disabled:cursor-not-allowed"
-                >
-                  <Send className="h-4 w-4 transform translate-x-[-1px] translate-y-[1px]" />
-                </Button>
+                {isStreaming ? (
+                  <Button
+                    onClick={cancelStreamingMessage}
+                    variant="outline"
+                    size="sm"
+                    className="relative h-8 w-8 p-0 rounded-full bg-gradient-to-r from-red-100 via-orange-100 to-red-50 hover:from-red-200 hover:via-orange-200 hover:to-red-100 dark:from-red-950 dark:via-red-900/60 dark:to-red-950 dark:hover:from-red-950 dark:hover:via-red-900/80 dark:hover:to-red-950 bg-[length:200%_200%] animate-gradient-shift text-red-800 dark:text-red-100 border border-red-200 dark:border-red-800 shadow-md hover:shadow-lg dark:shadow-lg dark:hover:shadow-xl transition-all duration-200"
+                  >
+                    <Square className="h-3 w-3" />
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleSend}
+                    disabled={isDisabled || (!message.trim() && attachedFiles.length === 0)}
+                    variant="outline"
+                    size="sm"
+                    className="relative h-8 w-8 p-0 rounded-full bg-gradient-to-r from-slate-100 via-blue-100 to-slate-50 hover:from-slate-200 hover:via-blue-200 hover:to-slate-100 dark:from-slate-950 dark:via-slate-900/60 dark:to-slate-950 dark:hover:from-slate-950 dark:hover:via-slate-900/80 dark:hover:to-slate-950 bg-[length:200%_200%] animate-gradient-shift text-slate-800 dark:text-white border border-slate-200 dark:border-slate-800 shadow-md hover:shadow-lg dark:shadow-lg dark:hover:shadow-xl transition-all duration-200 disabled:cursor-not-allowed"
+                  >
+                    <Send className="h-4 w-4 transform translate-x-[-1px] translate-y-[1px]" />
+                  </Button>
+                )}
               </div>
             </div>
           </div>

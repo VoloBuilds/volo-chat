@@ -36,7 +36,7 @@ export function SidebarHeader({
           onClick={() => navigate('/chat')}
           className="text-lg font-semibold whitespace-nowrap overflow-hidden hover:text-muted-foreground transition-colors"
         >
-          Volo Chat
+          Volo.chat
         </button>
         <div className="w-8"></div> {/* Spacer for centering */}
       </div>

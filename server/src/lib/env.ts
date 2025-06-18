@@ -8,7 +8,6 @@ type EnvLike = Record<string, string | undefined>;
 let contextEnv: EnvLike | null = null;
 
 export function setEnvContext(env: any) {
-  console.log('Setting env context:', env ? 'provided' : 'null');
   contextEnv = env;
 }
 
@@ -18,7 +17,6 @@ export function clearEnvContext() {
 
 function getEnvSource(): EnvLike {
   const source = contextEnv || process.env;
-  console.log('Using env source:', contextEnv ? 'contextEnv' : 'process.env');
   return source;
 }
 
@@ -29,7 +27,6 @@ function getEnvSource(): EnvLike {
 export function getEnv(key: string, defaultValue?: string): string | undefined {
   const source = getEnvSource();
   const value = source[key];
-  console.log(`getEnv(${key}): ${value ? '[PRESENT]' : '[MISSING]'} (source: ${contextEnv ? 'contextEnv' : 'process.env'})`);
   return value !== undefined ? value : defaultValue;
 }
 
@@ -79,6 +76,13 @@ export function getFirebaseProjectId(): string {
  */
 export function getNodeEnv() {
   return process.env;
+}
+
+/**
+ * Get OpenAI API key from environment
+ */
+export function getOpenAIApiKey(): string | undefined {
+  return getEnv('OPENAI_API_KEY');
 }
 
 /**

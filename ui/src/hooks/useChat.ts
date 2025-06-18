@@ -19,6 +19,7 @@ export function useChat(chatId?: string) {
     createChat,
     switchToChat,
     sendMessage,
+    cancelStreamingMessage,
     updateStreamingMessage,
     setSidebarOpen,
     loadPinnedChats,
@@ -26,6 +27,7 @@ export function useChat(chatId?: string) {
     unpinChat,
     deleteChat,
     updateChatTitle,
+    retryMessage,
   } = useChatStore();
 
   // Get current chat state from URL
@@ -53,9 +55,8 @@ export function useChat(chatId?: string) {
   // Switch to specific chat if we have a chatId but no messages loaded for it
   useEffect(() => {
     if (urlChatId && !messages[urlChatId] && chatsLoaded) {
-      console.log(`[USE-CHAT] Loading messages for chat: ${urlChatId}`);
       switchToChat(urlChatId).catch((error: Error) => {
-        console.error(`[USE-CHAT] Failed to switch to chat ${urlChatId}:`, error);
+        // Handle error silently or implement proper error handling
       });
     }
   }, [urlChatId, chatsLoaded]); // Remove 'messages' dependency to prevent loops
@@ -66,6 +67,14 @@ export function useChat(chatId?: string) {
       throw new Error('No chat ID available for sending message');
     }
     return sendMessage(effectiveChatId, content, attachments, existingBlobUrls);
+  };
+
+  // Wrapper for retryMessage that handles chatId
+  const retryMessageWithChatId = async (messageId: string) => {
+    if (!effectiveChatId) {
+      throw new Error('No chat ID available for retrying message');
+    }
+    return retryMessage(effectiveChatId, messageId);
   };
 
   return {
@@ -89,6 +98,8 @@ export function useChat(chatId?: string) {
     createChat,
     switchToChat,
     sendMessage: sendMessageWithChatId, // Wrapped to handle chatId
+    retryMessage: retryMessageWithChatId, // Wrapped to handle chatId
+    cancelStreamingMessage,
     updateStreamingMessage,
     setSidebarOpen,
     pinChat,

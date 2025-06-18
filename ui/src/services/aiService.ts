@@ -28,7 +28,8 @@ export class AIService {
     chatId: string, 
     message: string, 
     modelId: string, 
-    attachments?: Attachment[]
+    attachments?: Attachment[],
+    abortController?: AbortController
   ): AsyncIterableIterator<string> {
     try {
       const iterator = await api.streamChatResponse({
@@ -36,6 +37,7 @@ export class AIService {
         content: message,
         modelId,
         attachments,
+        abortController,
       });
       yield* iterator;
     } catch (error) {

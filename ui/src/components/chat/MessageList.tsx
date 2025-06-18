@@ -27,7 +27,7 @@ interface MessageListProps {
 }
 
 export function MessageList({ onScrollStateChange }: MessageListProps = {}) {
-  const { currentMessages, isStreaming, isLoadingChat } = useChat();
+  const { currentMessages, isStreaming, isLoadingChat, retryMessage } = useChat();
   const { chatId } = useCurrentChat();
   const { open: isSidebarOpen, isMobile } = useSidebar();
   const isMobileScreen = useIsMobile();
@@ -57,6 +57,19 @@ export function MessageList({ onScrollStateChange }: MessageListProps = {}) {
     setTimeout(() => {
       scrollToBottom();
     }, 150);
+  };
+
+  const handleRetry = async (messageId: string) => {
+    try {
+      await retryMessage(messageId);
+      // Auto-scroll to bottom when retry starts to see the new streaming response
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    } catch (error) {
+      // Error handling is done in the chat store
+      console.error('Failed to retry message:', error);
+    }
   };
 
   // Notify parent about scroll state changes
@@ -111,16 +124,24 @@ export function MessageList({ onScrollStateChange }: MessageListProps = {}) {
           mx-auto py-6 w-full
         `}>
           <div className={`space-y-8 w-full ${isMobileScreen ? 'pt-16 pb-32' : 'pb-32'}`}>
-            {currentMessages.map((message, index) => (
-              <MessageBubble 
-                key={message.id}
-                message={message}
-                isLast={index === currentMessages.length - 1}
-                isFirst={index === 0}
-                canBranch={true}
-                onBranch={handleBranch}
-              />
-            ))}
+            {currentMessages.map((message, index) => {
+              const isLast = index === currentMessages.length - 1;
+              // Only allow retry for the last assistant message in the conversation
+              const canRetry = isLast && message.role === 'assistant' && !isStreaming;
+              
+              return (
+                <MessageBubble 
+                  key={message.id}
+                  message={message}
+                  isLast={isLast}
+                  isFirst={index === 0}
+                  canBranch={true}
+                  onBranch={handleBranch}
+                  canRetry={canRetry}
+                  onRetry={handleRetry}
+                />
+              );
+            })}
             
             {/* Typing indicator removed - dots now show in message bubble */}
             

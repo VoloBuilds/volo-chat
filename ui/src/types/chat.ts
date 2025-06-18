@@ -1,7 +1,7 @@
 export interface AIModel {
   id: string;
   name: string;
-  provider: 'openrouter' | 'deepseek';
+  provider: 'openrouter' | 'deepseek' | 'openai';
   description: string;
   contextWindow: number;
   pricing: {
@@ -11,6 +11,12 @@ export interface AIModel {
   capabilities: string[];
   isAvailable: boolean;
   originalProvider?: string;
+  type?: 'text' | 'image' | 'multimodal'; // Model type
+  imageOptions?: {
+    supportedSizes: string[];
+    maxImages: number;
+    supportedFormats: string[];
+  };
 }
 
 export interface Chat {

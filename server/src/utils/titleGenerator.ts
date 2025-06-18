@@ -6,6 +6,7 @@ export interface TitleGenerationOptions {
   modelId?: string;
   maxLength?: number;
   fallbackWords?: number;
+  userId?: string; // For BYOK support
 }
 
 export interface TitleGenerationResult {
@@ -32,7 +33,8 @@ export class TitleGenerator {
       content,
       modelId = this.DEFAULT_MODEL,
       maxLength = this.MAX_TITLE_LENGTH,
-      fallbackWords = this.FALLBACK_WORDS
+      fallbackWords = this.FALLBACK_WORDS,
+      userId
     } = options;
 
     // Input validation
@@ -68,7 +70,7 @@ export class TitleGenerator {
       console.log('Title generation - starting with model:', modelId);
       console.log('Title generation - content length:', content.length);
       
-      const aiTitle = await this.generateWithAI(content, modelId);
+      const aiTitle = await this.generateWithAI(content, modelId, userId);
       
       console.log('Title generation - raw AI response:', aiTitle);
       
@@ -98,7 +100,7 @@ export class TitleGenerator {
   /**
    * Generate title using AI model
    */
-  private async generateWithAI(content: string, modelId: string): Promise<string> {
+  private async generateWithAI(content: string, modelId: string, userId?: string): Promise<string> {
     // Truncate content if too long to avoid token limits
     const truncatedContent = content.length > 200 ? content.substring(0, 200) + '...' : content;
     
@@ -132,7 +134,7 @@ Generate only the title:`;
     console.log('Title generation - prompt length:', titlePrompt.length);
     
     try {
-      const response = await this.aiManager.sendMessage(modelId, aiMessages);
+      const response = await this.aiManager.sendMessage(modelId, aiMessages, userId);
       console.log('Title generation - AI response:', response);
       return response.trim();
     } catch (aiError) {

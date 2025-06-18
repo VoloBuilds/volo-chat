@@ -1,5 +1,5 @@
-import { pgTable, pgSchema, unique, text, timestamp, foreignKey, uuid, integer, jsonb, index, boolean } from "drizzle-orm/pg-core"
-  import { sql } from "drizzle-orm"
+import { pgTable, pgSchema, unique, text, timestamp, foreignKey, uuid, integer, jsonb, index, boolean } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 
 export const app = pgSchema("app");
@@ -12,6 +12,11 @@ export const users = app.table("users", {
 	createdAt: timestamp("created_at", { mode: 'string' }).defaultNow().notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().notNull(),
 	pinnedChats: text("pinned_chats").default('{}').array().notNull(),
+	// BYOK fields
+	encryptedOpenrouterKey: text("encrypted_openrouter_key"),
+	openrouterKeySalt: text("openrouter_key_salt"),
+	openrouterKeyCreatedAt: timestamp("openrouter_key_created_at", { mode: 'string' }),
+	openrouterKeyUpdatedAt: timestamp("openrouter_key_updated_at", { mode: 'string' }),
 },
 (table) => {
 	return {

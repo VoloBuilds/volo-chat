@@ -1,10 +1,12 @@
 import { BaseAIProvider } from './BaseProvider';
 import { OpenRouterProvider } from './OpenRouterProvider';
+import { OpenAIProvider, ImageGenerationOptions, ImageResult } from './OpenAIProvider';
 import { ModelMappings } from './ModelMappings';
 import { AIModel, ChatMessage, ProviderError } from '../../types/ai';
 
 export class AIProviderManager {
   private openRouterProvider: OpenRouterProvider | null = null;
+  private openAIProvider: OpenAIProvider | null = null;
   private initialized = false;
 
   constructor() {
@@ -14,14 +16,24 @@ export class AIProviderManager {
   private initializeProviders() {
     if (this.initialized) return;
 
-    // Initialize only OpenRouter provider
+    // Initialize providers
     this.openRouterProvider = new OpenRouterProvider();
+    this.openAIProvider = new OpenAIProvider();
     this.initialized = true;
   }
 
   getProvider(modelId: string): BaseAIProvider {
     this.initializeProviders();
     
+    // Check if it's an image generation model (OpenAI)
+    if (this.openAIProvider?.isImageModel(modelId)) {
+      if (!this.openAIProvider) {
+        throw new Error('OpenAI provider not initialized');
+      }
+      return this.openAIProvider;
+    }
+    
+    // Default to OpenRouter for text models
     if (!this.openRouterProvider) {
       throw new Error('OpenRouter provider not initialized');
     }
@@ -33,71 +45,131 @@ export class AIProviderManager {
     return this.openRouterProvider;
   }
 
+  getProviderForModel(modelId: string): BaseAIProvider {
+    return this.getProvider(modelId);
+  }
+
   async getAllModels(): Promise<AIModel[]> {
     this.initializeProviders();
     
-    if (!this.openRouterProvider?.hasApiKey()) {
-      console.warn('OpenRouter API key not available, no models will be available');
-      return [];
+    const allModels: AIModel[] = [];
+
+    // Get OpenRouter models
+    if (this.openRouterProvider?.hasApiKey()) {
+      try {
+        const openRouterModels = await this.openRouterProvider.getModels();
+        allModels.push(...openRouterModels.map(model => ({
+          ...model,
+          isAvailable: true,
+        })));
+      } catch (error) {
+        console.error('Failed to fetch OpenRouter models:', error);
+      }
+    } else {
+      console.warn('OpenRouter API key not available, OpenRouter models will not be available');
     }
 
-    try {
-      const openRouterModels = await this.openRouterProvider.getModels();
-      return openRouterModels.map(model => ({
-        ...model,
-        isAvailable: true,
-      }));
-    } catch (error) {
-      console.error('Failed to fetch OpenRouter models:', error);
-      return [];
+    // Get OpenAI models (image generation models are always available)
+    if (this.openAIProvider) {
+      try {
+        const openAIModels = await this.openAIProvider.getModels();
+        allModels.push(...openAIModels);
+      } catch (error) {
+        console.error('Failed to fetch OpenAI models:', error);
+      }
     }
+
+    return allModels;
   }
 
-  async sendMessage(modelId: string, messages: ChatMessage[]): Promise<string> {
+  async sendMessage(modelId: string, messages: ChatMessage[], userId?: string): Promise<string> {
     this.initializeProviders();
     
-    if (!this.openRouterProvider?.hasApiKey()) {
+    if (!this.openRouterProvider) {
+      throw new Error('OpenRouter provider not initialized');
+    }
+
+    // Check if user has their own API key, otherwise require system key
+    if (!userId && !this.openRouterProvider.hasApiKey()) {
       throw new Error('OpenRouter API key not configured. Please add OPENROUTER_API_KEY to your environment variables.');
     }
 
     const openRouterModelId = ModelMappings.getOpenRouterModelId(modelId);
-    return await this.openRouterProvider.sendMessage(openRouterModelId, messages);
+    return await this.openRouterProvider.sendMessage(openRouterModelId, messages, userId);
   }
 
-  async *streamMessage(modelId: string, messages: ChatMessage[]): AsyncIterableIterator<string> {
+  async *streamMessage(modelId: string, messages: ChatMessage[], userId?: string): AsyncIterableIterator<string> {
     this.initializeProviders();
     
-    if (!this.openRouterProvider?.hasApiKey()) {
+    if (!this.openRouterProvider) {
+      throw new Error('OpenRouter provider not initialized');
+    }
+
+    // Check if user has their own API key, otherwise require system key
+    if (!userId && !this.openRouterProvider.hasApiKey()) {
       throw new Error('OpenRouter API key not configured. Please add OPENROUTER_API_KEY to your environment variables.');
     }
 
     const openRouterModelId = ModelMappings.getOpenRouterModelId(modelId);
-    yield* this.openRouterProvider.streamMessage(openRouterModelId, messages);
+    yield* this.openRouterProvider.streamMessage(openRouterModelId, messages, userId);
+  }
+
+  async generateImage(modelId: string, prompt: string, options: ImageGenerationOptions = {}, userId?: string): Promise<ImageResult> {
+    this.initializeProviders();
+    
+    if (!this.openAIProvider) {
+      throw new Error('OpenAI provider not initialized');
+    }
+
+    if (!this.openAIProvider.isImageModel(modelId)) {
+      throw new Error(`Model ${modelId} is not an image generation model`);
+    }
+
+    return await this.openAIProvider.generateImage(prompt, options, userId, modelId);
+  }
+
+  isImageGenerationModel(modelId: string): boolean {
+    this.initializeProviders();
+    return this.openAIProvider?.isImageModel(modelId) || false;
   }
 
   async validateProvider(providerName: string, apiKey: string): Promise<boolean> {
-    if (providerName !== 'openrouter') {
-      return false;
+    if (providerName === 'openrouter') {
+      this.initializeProviders();
+      if (!this.openRouterProvider) {
+        return false;
+      }
+      return this.openRouterProvider.validateApiKey(apiKey);
     }
     
-    this.initializeProviders();
-    if (!this.openRouterProvider) {
-      return false;
+    if (providerName === 'openai') {
+      this.initializeProviders();
+      if (!this.openAIProvider) {
+        return false;
+      }
+      return this.openAIProvider.validateApiKey(apiKey);
     }
     
-    return this.openRouterProvider.validateApiKey(apiKey);
+    return false;
   }
 
   getAvailableProviders(): string[] {
-    return ['openrouter'];
+    return ['openrouter', 'openai'];
   }
 
   getConfiguredProviders(): string[] {
     this.initializeProviders();
+    const configured: string[] = [];
+    
     if (this.openRouterProvider?.hasApiKey()) {
-      return ['openrouter'];
+      configured.push('openrouter');
     }
-    return [];
+    
+    if (this.openAIProvider?.hasApiKey()) {
+      configured.push('openai');
+    }
+    
+    return configured;
   }
 
   getProviderStatus(): Record<string, any> {
@@ -107,6 +179,10 @@ export class AIProviderManager {
     
     if (this.openRouterProvider) {
       status.openrouter = this.openRouterProvider.getProviderStatus();
+    }
+
+    if (this.openAIProvider) {
+      status.openai = this.openAIProvider.getProviderStatus();
     }
 
     return status;

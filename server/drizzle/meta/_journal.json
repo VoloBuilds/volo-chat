@@ -8,6 +8,20 @@
       "when": 1750198318642,
       "tag": "0000_odd_eternity",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1750200000000,
+      "tag": "0004_add_user_api_keys",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1750300000000,
+      "tag": "0005_add_custom_instructions",
+      "breakpoints": true
     }
   ]
 }

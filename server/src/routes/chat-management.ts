@@ -290,7 +290,11 @@ chatManagement.get('/:id/metadata', async (c) => {
   }
 });
 
-// Mount branching routes
+// Mount branching routes and sharing routes
 chatManagement.route('/', chatBranching);
+
+// Import and mount sharing routes
+import { chatSharing } from './chat-sharing';
+chatManagement.route('/', chatSharing);
 
 export { chatManagement }; 

@@ -29,7 +29,8 @@ import {
   Video,
   Wrench,
   Users,
-  Info
+  Info,
+  Image
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { AIModel } from '../../types/chat';
@@ -39,6 +40,8 @@ import { AIModel } from '../../types/chat';
 const RECOMMENDED_MODELS = [
   { pattern: 'gemini.*2\.?5.*flash', name: 'Gemini 2.5 Flash' },
   { pattern: 'gemini.*2\.?5.*pro', name: 'Gemini 2.5 Pro' },
+  { pattern: 'gpt-image-1', name: 'GPT Image 1' },
+  { pattern: 'dall-e-3', name: 'DALL-E 3' },
   { pattern: 'gpt.*image|dalle|imagegen', name: 'GPT ImageGen' },
   { pattern: 'o1.*mini|o4.*mini', name: 'o4-mini' },
   { pattern: 'claude.*4.*sonnet(?!.*reasoning|.*thinking)', name: 'Claude 4 Sonnet' },
@@ -210,6 +213,8 @@ export function ModelSelector() {
         return Brain;
       case 'analysis':
         return Sparkles;
+      case 'image-generation':
+        return Image;
       default:
         return null; // Don't show icons for other capabilities
     }

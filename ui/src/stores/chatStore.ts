@@ -116,7 +116,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
     
     try {
       set({ isLoading: true });
-      const models = await aiService.getAvailableModels();
+      
+      // Add a small retry mechanism for the race condition
+      let models: AIModel[] = [];
+      let lastError: Error | null = null;
+      const maxRetries = 3;
+      const retryDelay = 500; // 500ms delay between retries
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          console.log(`[MODELS] Loading models (attempt ${attempt}/${maxRetries})`);
+          models = await aiService.getAvailableModels();
+          console.log(`[MODELS] Successfully loaded ${models.length} models`);
+          break; // Success, exit retry loop
+        } catch (error) {
+          lastError = error as Error;
+          console.warn(`[MODELS] Attempt ${attempt} failed:`, error);
+          
+          if (attempt < maxRetries) {
+            // Wait before retrying, but not on the last attempt
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+          }
+        }
+      }
+      
+      // If all retries failed, throw the last error
+      if (models.length === 0 && lastError) {
+        throw lastError;
+      }
       
       // Only set a default model if no model is currently selected
       let finalSelectedModelId = selectedModelId;
@@ -166,6 +193,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       });
       
     } catch (error) {
+      console.error('[MODELS] Failed to load models after all retries:', error);
       set({ availableModels: [], selectedModelId: '', modelsLoaded: true });
     } finally {
       set({ isLoading: false });

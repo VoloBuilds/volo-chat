@@ -17,7 +17,12 @@ async function getAuthToken(): Promise<string | null> {
   if (!user) {
     return null;
   }
-  return user.getIdToken();
+  try {
+    return await user.getIdToken();
+  } catch (error) {
+    console.warn('Failed to get auth token:', error);
+    return null;
+  }
 }
 
 export async function fetchWithAuth(
@@ -52,10 +57,27 @@ export async function fetchWithAuth(
 
 // Model endpoints
 export async function getAvailableModels(): Promise<AIModel[]> {
-  const response = await fetchWithAuth('/api/v1/models');
-  const data = await response.json();
-  // Backend returns { models: [...], providers: [...] }
-  return data.models || [];
+  try {
+    const response = await fetchWithAuth('/api/v1/models');
+    const data = await response.json();
+    // Backend returns { models: [...], providers: [...] }
+    return data.models || [];
+  } catch (error) {
+    console.warn('Failed to fetch models with auth, trying without auth:', error);
+    
+    // Fallback: try without authentication for public models endpoint
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/models`);
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.statusText}`);
+      }
+      const data = await response.json();
+      return data.models || [];
+    } catch (fallbackError) {
+      console.error('Failed to fetch models even without auth:', fallbackError);
+      throw fallbackError;
+    }
+  }
 }
 
 export async function getModelDetails(modelId: string): Promise<AIModel> {

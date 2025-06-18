@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useChatStore } from '../stores/chatStore';
 import { useCurrentChat } from './useCurrentChat';
+import { useAuth } from '../lib/auth-context';
 
 export function useChat(chatId?: string) {
   const {
@@ -30,6 +31,9 @@ export function useChat(chatId?: string) {
     retryMessage,
   } = useChatStore();
 
+  // Get auth state to wait for authentication
+  const { user, loading: authLoading } = useAuth();
+
   // Get current chat state from URL
   const { chatId: urlChatId, currentChat, isLoadingChat } = useCurrentChat();
   
@@ -46,11 +50,14 @@ export function useChat(chatId?: string) {
     return streamingMessageId !== null;
   }, [streamingMessageId]);
 
-  // Load models and pinned chats on mount (chats are loaded at app level)
+  // Load models and pinned chats only after authentication is complete
   useEffect(() => {
-    loadModels();
-    loadPinnedChats();
-  }, []); // Empty dependency array to run only once
+    // Wait for auth to complete (either user exists or loading is done)
+    if (!authLoading && user) {
+      loadModels();
+      loadPinnedChats();
+    }
+  }, [authLoading, user]); // Only run when auth state changes
 
   // Switch to specific chat if we have a chatId but no messages loaded for it
   useEffect(() => {

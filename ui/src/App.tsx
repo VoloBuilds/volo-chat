@@ -46,12 +46,20 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const { user, loading, isAnonymous } = useAuth();
-  const { loadChats, clearCurrentNavigation } = useChatStore();
+  const { loadChats, clearCurrentNavigation, loadModels } = useChatStore();
   const navigate = useNavigate();
   const location = useLocation();
 
   // Track previous anonymous state to detect authentication upgrades
   const [previousIsAnonymous, setPreviousIsAnonymous] = React.useState<boolean | null>(null);
+
+  // Load models immediately when app starts (models are public, no auth needed)
+  useEffect(() => {
+    console.log('[APP] Loading models...');
+    loadModels().catch(error => {
+      console.error('[APP] Failed to load models:', error);
+    });
+  }, []); // Run once on app start
 
   // Load chats once when user is authenticated (including anonymous users)
   useEffect(() => {

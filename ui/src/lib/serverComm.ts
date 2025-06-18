@@ -50,16 +50,42 @@ export async function fetchWithAuth(
   return response;
 }
 
+// For public endpoints that don't require authentication
+export async function fetchPublic(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers: new Headers(options.headers),
+  });
+
+  if (!response.ok) {
+    let errorMessage = `API request failed: ${response.statusText}`;
+    try {
+      const errorData = await response.json();
+      errorMessage = errorData.error || errorMessage;
+    } catch (e) {
+      // Keep the default error message if JSON parsing fails
+    }
+    throw new APIError(response.status, errorMessage);
+  }
+
+  return response;
+}
+
 // Model endpoints
 export async function getAvailableModels(): Promise<AIModel[]> {
-  const response = await fetchWithAuth('/api/v1/models');
+  // Models endpoint is public, no auth required
+  const response = await fetchPublic('/api/v1/models');
   const data = await response.json();
   // Backend returns { models: [...], providers: [...] }
   return data.models || [];
 }
 
 export async function getModelDetails(modelId: string): Promise<AIModel> {
-  const response = await fetchWithAuth(`/api/v1/models/${modelId}`);
+  // Models endpoint is public, no auth required
+  const response = await fetchPublic(`/api/v1/models/${modelId}`);
   const data = await response.json();
   // Backend returns { model: {...} }
   return data.model;

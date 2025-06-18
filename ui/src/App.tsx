@@ -18,7 +18,12 @@ import { useChatStore } from '@/stores/chatStore';
 
 // Layout component for authenticated routes
 function AppLayout({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+
+  // Don't redirect while still loading or if user exists (including anonymous users)
+  if (loading) {
+    return <div className="flex items-center justify-center h-dvh"></div>;
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -27,10 +32,10 @@ function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Navbar />
-      <div className="flex flex-1">
+      <div className="flex flex-1 overflow-hidden">
         <AppSidebar />
-        <SidebarInset className="flex-1">
-          <main className="flex-1">
+        <SidebarInset className="flex-1 overflow-hidden">
+          <main className="flex-1 overflow-hidden">
             {children}
           </main>
         </SidebarInset>
@@ -41,12 +46,20 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
 function AppContent() {
   const { user, loading, isAnonymous } = useAuth();
-  const { loadChats, clearCurrentNavigation } = useChatStore();
+  const { loadChats, clearCurrentNavigation, loadModels } = useChatStore();
   const navigate = useNavigate();
   const location = useLocation();
 
   // Track previous anonymous state to detect authentication upgrades
   const [previousIsAnonymous, setPreviousIsAnonymous] = React.useState<boolean | null>(null);
+
+  // Load models immediately when app starts (models are public, no auth needed)
+  useEffect(() => {
+    console.log('[APP] Loading models...');
+    loadModels().catch(error => {
+      console.error('[APP] Failed to load models:', error);
+    });
+  }, []); // Run once on app start
 
   // Load chats once when user is authenticated (including anonymous users)
   useEffect(() => {
@@ -91,12 +104,12 @@ function AppContent() {
   }, [user, loading, clearCurrentNavigation, navigate, location.pathname]);
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen"></div>;
+    return <div className="flex items-center justify-center h-dvh"></div>;
   }
 
   return (
     <SidebarProvider>
-      <div className="flex flex-col w-full min-h-screen bg-background">
+      <div className="flex flex-col w-full h-dvh bg-background overflow-hidden">
         <Routes>
           {/* Public login route */}
           <Route path="/login" element={<Login />} />

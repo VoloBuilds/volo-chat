@@ -13,7 +13,7 @@ export function ChatArea() {
   const showWelcome = !chatId;
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-full flex flex-col bg-background">
       {/* Main chat area with flexbox layout */}
       <div className="flex-1 min-h-0 flex flex-col">
         {showWelcome ? (

@@ -476,7 +476,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const streamWithEventHandling = async function* () {
         try {
           for await (const chunk of streamResponse) {
-            console.log(`[CHAT-STORE] Raw chunk received:`, { chunk, hasReplace: chunk.startsWith('REPLACE:') });
             
             // Handle REPLACE: prefix for image generation progress updates
             if (chunk.startsWith('REPLACE:')) {
@@ -1181,7 +1180,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // Process the stream
       try {
         for await (const chunk of streamResponse) {
-          console.log(`[CHAT-STORE-RETRY] Raw chunk received:`, { chunk, hasReplace: chunk.startsWith('REPLACE:') });
           
           // Handle REPLACE: prefix for image generation progress updates
           if (chunk.startsWith('REPLACE:')) {

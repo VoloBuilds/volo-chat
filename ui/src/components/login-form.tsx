@@ -17,7 +17,7 @@ const GoogleIcon = () => (
 )
 
 export function LoginForm() {
-  const { isAnonymous, upgradeAnonymousUser, upgradeAnonymousUserWithGoogle } = useAuth()
+  const { isAnonymous, upgradeAnonymousUser } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -90,10 +90,19 @@ export function LoginForm() {
   const handleGoogleSignIn = async () => {
     try {
       if (isAnonymous) {
-        // Upgrade anonymous user with Google
-        await upgradeAnonymousUserWithGoogle()
-        console.log('Anonymous user upgraded with Google account')
-        navigate('/chat')
+        // For anonymous users, just sign out and sign in fresh with Google (no data preservation)
+        console.log('Anonymous user detected, signing out and signing in fresh with Google')
+        await signOut(auth) // Sign out anonymous user first
+        // Small delay to ensure auth state has updated
+        setTimeout(async () => {
+          try {
+            await signInWithPopup(auth, googleProvider)
+            navigate('/chat')
+          } catch (popupErr: any) {
+            console.error('Failed to sign in with Google after signout:', popupErr)
+            setError("Failed to sign in with Google. Please try again.")
+          }
+        }, 100)
       } else {
         // Normal Google sign in - this handles both sign-in and registration automatically
         await signInWithPopup(auth, googleProvider)
@@ -101,18 +110,7 @@ export function LoginForm() {
       }
     } catch (err: any) {
       // Handle specific authentication errors
-      if (err.code === 'auth/credential-already-in-use') {
-        // This occurs when trying to upgrade anonymous user but the Google credential is already associated with another account
-        // Sign out anonymous user and ask them to try again (to avoid popup blocker issues)
-        console.log('Google credential already in use, signing out anonymous user')
-        try {
-          await signOut(auth)
-          setError("You already have an account with this Google email. Please click 'Sign in with Google' again to access your existing account.")
-        } catch (signOutErr: any) {
-          console.error('Failed to sign out anonymous user:', signOutErr)
-          setError("Please refresh the page and try signing in with Google again.")
-        }
-      } else if (err.code === 'auth/account-exists-with-different-credential') {
+      if (err.code === 'auth/account-exists-with-different-credential') {
         // This occurs when an account already exists with a different sign-in method
         setError("An account with this email already exists using a different sign-in method. Please try signing in with your original method.")
       } else if (err.code === 'auth/popup-closed-by-user') {

@@ -3,6 +3,9 @@ import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { cn } from '../../lib/utils';
+import { useState } from 'react';
+import { Copy, Check } from 'lucide-react';
+import { Button } from './button';
 
 interface MarkdownProps {
   content: string;
@@ -11,7 +14,7 @@ interface MarkdownProps {
 
 export function Markdown({ content, className }: MarkdownProps) {
   return (
-    <div className={cn("prose prose-base dark:prose-invert w-full min-w-0 prose-code:text-base prose-pre:text-base", className)}>
+    <div className={cn("prose prose-base dark:prose-invert w-full min-w-0 max-w-full prose-code:text-base prose-pre:text-base overflow-hidden", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -21,33 +24,7 @@ export function Markdown({ content, className }: MarkdownProps) {
             const language = match ? match[1] : '';
             
             if (!inline && language) {
-              return (
-                <div className="my-4 w-full min-w-0 overflow-hidden">
-                  {/* Language label */}
-                  <div className="bg-muted/50 rounded-t-lg px-3 py-1 text-xs font-medium text-muted-foreground border-b">
-                    {language}
-                  </div>
-                  {/* Code block with horizontal scroll */}
-                  <div className="overflow-x-auto">
-                    <SyntaxHighlighter
-                      style={oneDark}
-                      language={language}
-                      PreTag="div"
-                      customStyle={{
-                        margin: 0,
-                        borderTopLeftRadius: 0,
-                        borderTopRightRadius: 0,
-                        borderBottomLeftRadius: '0.5rem',
-                        borderBottomRightRadius: '0.5rem',
-                        fontSize: '1rem', // text-base equivalent (16px)
-                      }}
-                      {...props}
-                    >
-                      {String(children).replace(/\n$/, '')}
-                    </SyntaxHighlighter>
-                  </div>
-                </div>
-              );
+              return <CodeBlock language={language} code={String(children).replace(/\n$/, '')} {...props} />;
             }
             
             // Inline code
@@ -72,7 +49,7 @@ export function Markdown({ content, className }: MarkdownProps) {
           
           table({ children }) {
             return (
-              <div className="overflow-x-auto my-4">
+              <div className="overflow-x-auto my-4 max-w-full">
                 <table className="min-w-full divide-y divide-border">
                   {children}
                 </table>
@@ -140,6 +117,65 @@ export function Markdown({ content, className }: MarkdownProps) {
       >
         {content}
       </ReactMarkdown>
+    </div>
+  );
+}
+
+// Separate component for code blocks with copy functionality
+function CodeBlock({ language, code, ...props }: { language: string; code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy code:', error);
+    }
+  };
+
+  return (
+    <div className="group relative my-4 w-full min-w-0 max-w-full overflow-hidden">
+      {/* Language label */}
+      <div className="bg-muted/50 rounded-t-lg px-3 py-1 text-xs font-medium text-muted-foreground border-b flex justify-between items-center">
+        <span>{language}</span>
+        {/* Copy button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-background/50"
+          onClick={handleCopy}
+        >
+          {copied ? (
+            <Check className="h-5 w-5 text-green-500" />
+          ) : (
+            <Copy className="h-5 w-5" />
+          )}
+        </Button>
+      </div>
+      {/* Code block with constrained width and horizontal scroll */}
+      <div className="overflow-x-auto max-w-full">
+        <SyntaxHighlighter
+          style={oneDark}
+          language={language}
+          PreTag="div"
+          customStyle={{
+            margin: 0,
+            borderTopLeftRadius: 0,
+            borderTopRightRadius: 0,
+            borderBottomLeftRadius: '0.5rem',
+            borderBottomRightRadius: '0.5rem',
+            fontSize: '1rem', // text-base equivalent (16px)
+            maxWidth: '100%',
+            overflowX: 'auto',
+            whiteSpace: 'pre', // Prevent wrapping, allow horizontal scroll
+          }}
+          {...props}
+        >
+          {code}
+        </SyntaxHighlighter>
+      </div>
     </div>
   );
 } 

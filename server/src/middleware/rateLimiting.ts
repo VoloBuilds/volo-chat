@@ -14,7 +14,7 @@ const store: RateLimitStore = {};
 export const rateLimitMiddleware = (requests: number, windowMs: number) => {
   return async (c: Context, next: Next) => {
     const user = c.get('user');
-    const userId = user?.uid || c.req.header('x-forwarded-for') || 'anonymous';
+    const userId = user?.id || c.req.header('x-forwarded-for') || 'anonymous';
     
     const now = Date.now();
     const key = `${userId}:${Math.floor(now / windowMs)}`;

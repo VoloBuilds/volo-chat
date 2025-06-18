@@ -11,6 +11,7 @@ import * as schema from './schema';
 import { models } from './routes/models';
 import { chats } from './routes/chats';
 import { fileRoutes } from './routes/files';
+import { userManagement } from './routes/user-management';
 
 const app = new Hono();
 
@@ -118,6 +119,7 @@ chatRoutes.use('*', async (c, next) => {
 chatRoutes.use('*', authMiddleware);
 chatRoutes.route('/chats', chats);
 chatRoutes.route('/files', fileRoutes);
+chatRoutes.route('/user', userManagement);
 
 api.route('/', chatRoutes);
 

@@ -5,6 +5,7 @@ import { getDatabase } from '../lib/db-cloudflare';
 import { chats as chatsTable, messages } from '../schema';
 import type { NewChat } from '../schema';
 import { rateLimitMiddleware } from '../middleware/rateLimiting';
+import { chatBranching } from './chat-branching';
 
 const chatManagement = new Hono();
 
@@ -221,5 +222,75 @@ chatManagement.delete('/:id', async (c) => {
     }, 500);
   }
 });
+
+// GET /api/chats/:id/metadata - Get chat metadata including branch info
+chatManagement.get('/:id/metadata', async (c) => {
+  try {
+    const user = c.get('user');
+    if (!user) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const chatId = c.req.param('id');
+    const db = await getDatabase();
+
+    // Get chat and verify ownership
+    const [chat] = await db
+      .select()
+      .from(chatsTable)
+      .where(
+        and(
+          eq(chatsTable.id, chatId),
+          eq(chatsTable.userId, user.id)
+        )
+      );
+
+    if (!chat) {
+      return c.json({ error: 'Chat not found' }, 404);
+    }
+
+    // Get related information
+    let originalChat = null;
+    let branches: typeof chatsTable.$inferSelect[] = [];
+
+    // If this is a branched chat, get original
+    if (chat.originalChatId && chat.isBranched) {
+      [originalChat] = await db
+        .select()
+        .from(chatsTable)
+        .where(eq(chatsTable.id, chat.originalChatId));
+    }
+
+    // Get branches from this chat (regardless of whether this chat is itself branched)
+    branches = await db
+      .select()
+      .from(chatsTable)
+      .where(
+        and(
+          eq(chatsTable.originalChatId, chatId),
+          eq(chatsTable.isBranched, true)
+        )
+      );
+
+    return c.json({
+      chat,
+      originalChat,
+      branches,
+      isBranched: chat.isBranched,
+      hasOriginal: !!originalChat,
+      branchCount: branches.length,
+    });
+
+  } catch (error) {
+    console.error('Error fetching chat metadata:', error);
+    return c.json({
+      error: 'Failed to fetch chat metadata',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+// Mount branching routes
+chatManagement.route('/', chatBranching);
 
 export { chatManagement }; 

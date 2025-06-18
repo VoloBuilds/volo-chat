@@ -68,7 +68,7 @@ export class AIService {
       const response = await api.generateTitle({
         chatId,
         content: firstMessage,
-        modelId: 'gemini-2.5-flash-preview-05-20' // Use the latest Gemini model
+        modelId: 'google/gemini-2.5-flash-lite-preview-06-17' // Use the correct default model
       });
       
       return response.title || 'New Chat';

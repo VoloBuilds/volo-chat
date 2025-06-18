@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useChatStore } from '../stores/chatStore';
 import { useCurrentChat } from './useCurrentChat';
 
@@ -8,6 +8,8 @@ export function useChat(chatId?: string) {
     selectedModelId,
     chats,
     chatsLoaded,
+    pinnedChats,
+    pinnedChatsLoaded,
     messages,
     streamingMessageId,
     isSidebarOpen,
@@ -19,6 +21,11 @@ export function useChat(chatId?: string) {
     sendMessage,
     updateStreamingMessage,
     setSidebarOpen,
+    loadPinnedChats,
+    pinChat,
+    unpinChat,
+    deleteChat,
+    updateChatTitle,
   } = useChatStore();
 
   // Get current chat state from URL
@@ -27,15 +34,20 @@ export function useChat(chatId?: string) {
   // Use the provided chatId or fall back to URL chatId
   const effectiveChatId = chatId || urlChatId;
 
-  // Calculate the final currentMessages to return
-  const finalCurrentMessages = effectiveChatId ? messages[effectiveChatId] || [] : [];
+  // Calculate the final currentMessages to return - memoized for performance
+  const finalCurrentMessages = useMemo(() => {
+    return effectiveChatId ? messages[effectiveChatId] || [] : [];
+  }, [effectiveChatId, messages]);
   
-  // Check if currently streaming
-  const isStreaming = streamingMessageId !== null;
+  // Check if currently streaming - memoized
+  const isStreaming = useMemo(() => {
+    return streamingMessageId !== null;
+  }, [streamingMessageId]);
 
-  // Load models on mount (chats are loaded at app level)
+  // Load models and pinned chats on mount (chats are loaded at app level)
   useEffect(() => {
     loadModels();
+    loadPinnedChats();
   }, []); // Empty dependency array to run only once
 
   // Switch to specific chat if we have a chatId but no messages loaded for it
@@ -46,7 +58,7 @@ export function useChat(chatId?: string) {
         console.error(`[USE-CHAT] Failed to switch to chat ${urlChatId}:`, error);
       });
     }
-  }, [urlChatId, messages, chatsLoaded]);
+  }, [urlChatId, chatsLoaded]); // Remove 'messages' dependency to prevent loops
 
   // Wrapper for sendMessage that handles chatId
   const sendMessageWithChatId = async (content: string, attachments?: File[], existingBlobUrls?: Map<File, string>) => {
@@ -62,6 +74,8 @@ export function useChat(chatId?: string) {
     selectedModelId,
     chats,
     chatsLoaded,
+    pinnedChats,
+    pinnedChatsLoaded,
     activeChatId: effectiveChatId, // For backwards compatibility, but derived from URL
     currentMessages: finalCurrentMessages,
     currentChat,
@@ -77,5 +91,9 @@ export function useChat(chatId?: string) {
     sendMessage: sendMessageWithChatId, // Wrapped to handle chatId
     updateStreamingMessage,
     setSidebarOpen,
+    pinChat,
+    unpinChat,
+    deleteChat,
+    updateChatTitle,
   };
 } 

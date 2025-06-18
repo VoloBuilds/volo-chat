@@ -1,6 +1,6 @@
 import { getAuth } from 'firebase/auth';
 import { app } from './firebase';
-import { AIModel, Chat, Message, Attachment } from '../types/chat';
+import { AIModel, Chat, Message, Attachment, BranchResponse, ChatMetadata } from '../types/chat';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 
@@ -134,7 +134,7 @@ export async function sendMessage(chatId: string, data: {
   const response = await sendChatMessage({
     chatId,
     content: data.content,
-    modelId: 'gemini-1.5-flash', // Default model
+    modelId: 'google/gemini-2.5-flash-lite-preview-06-17', // Default model
     attachments: data.attachments
   });
   return response.userMessage;
@@ -526,6 +526,103 @@ export async function getCurrentUser() {
   return response.json();
 }
 
+export async function getUserPinnedChats(): Promise<string[]> {
+  const response = await fetchWithAuth('/api/v1/user/pinned-chats');
+  const data = await response.json();
+  return data.pinnedChats || [];
+}
+
+export async function pinChat(chatId: string): Promise<string[]> {
+  const response = await fetchWithAuth(`/api/v1/user/pin-chat/${chatId}`, {
+    method: 'POST',
+  });
+  const data = await response.json();
+  return data.pinnedChats || [];
+}
+
+export async function unpinChat(chatId: string): Promise<string[]> {
+  const response = await fetchWithAuth(`/api/v1/user/pin-chat/${chatId}`, {
+    method: 'DELETE',
+  });
+  const data = await response.json();
+  return data.pinnedChats || [];
+}
+
+// Common chat operations that both features use
+
+export interface ChatCopyResponse {
+  chat: Chat;
+  copiedMessageCount: number;
+  message?: string;
+}
+
+// Generic function for copying chats (used by both share import and branching)
+async function copyChat(
+  sourceType: 'shared' | 'branch',
+  identifier: string,
+  options?: { messageId?: string }
+): Promise<ChatCopyResponse> {
+  const endpoint = sourceType === 'shared' 
+    ? `/api/v1/shared/${identifier}/import`
+    : `/api/v1/chats/${identifier}/branch`;
+    
+  const body = options?.messageId 
+    ? { messageId: options.messageId }
+    : {};
+
+  const response = await fetchWithAuth(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  return response.json();
+}
+
+// Chat branching functions
+export async function branchChatFromMessage(
+  chatId: string, 
+  messageId: string
+): Promise<BranchResponse> {
+  const response = await fetchWithAuth(`/api/v1/chats/${chatId}/branch`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ messageId }),
+  });
+  const result = await response.json();
+  return result;
+}
+
+export async function getChatBranches(chatId: string): Promise<Chat[]> {
+  const response = await fetchWithAuth(`/api/v1/chats/${chatId}/branches`);
+  const data = await response.json();
+  return data.branches || [];
+}
+
+export async function getChatMetadata(chatId: string): Promise<ChatMetadata> {
+  const response = await fetchWithAuth(`/api/v1/chats/${chatId}/metadata`);
+  return response.json();
+}
+
+// Helper for generating titles
+export function generateChatTitle(originalTitle: string, type: 'shared' | 'branched'): string {
+  const suffix = type === 'shared' ? '(Shared)' : '(Branch)';
+  return originalTitle.includes(suffix) ? originalTitle : `${originalTitle} ${suffix}`;
+}
+
+// Helper for checking if chat is a copy
+export function isCopiedChat(chat: Chat): boolean {
+  return !!(chat.originalChatId && (chat.isBranched || !chat.isShared));
+}
+
+// Helper for getting copy type
+export function getChatCopyType(chat: Chat): 'shared' | 'branched' | 'original' {
+  if (!chat.originalChatId) return 'original';
+  return chat.isBranched ? 'branched' : 'shared';
+}
+
 // Export the main API object
 export const api = {
   // Models
@@ -565,4 +662,17 @@ export const api = {
   
   // User
   getCurrentUser,
+  getUserPinnedChats,
+  pinChat,
+  unpinChat,
+  
+  // Common patterns (will be extended by features)
+  generateChatTitle,
+  isCopiedChat,
+  getChatCopyType,
+  
+  // Chat branching
+  branchChatFromMessage,
+  getChatBranches,
+  getChatMetadata,
 }; 

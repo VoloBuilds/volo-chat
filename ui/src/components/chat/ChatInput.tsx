@@ -10,6 +10,7 @@ import { FileUpload } from './FileUpload';
 import { ModelSelector } from './ModelSelector';
 import { ImageAttachment } from './ImageAttachment';
 import { FileAttachment } from './FileAttachment';
+import { ChatBranchInfo } from './ChatBranchInfo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { cn } from '../../lib/utils';
 import { Send, Paperclip, X, File, ArrowDown } from 'lucide-react';
@@ -17,9 +18,10 @@ import { Attachment } from '../../types/chat';
 import { v4 as uuidv4 } from 'uuid';
 import { requiresAnalysisModel, findBestAnalysisModel, getModelSwitchReason } from '../../utils/modelUtils';
 
-export function ChatInput({ showScrollButton, onScrollToBottom }: { 
+export function ChatInput({ showScrollButton, onScrollToBottom, autoFocus }: { 
   showScrollButton?: boolean; 
   onScrollToBottom?: () => void; 
+  autoFocus?: boolean;
 } = {}) {
   const navigate = useNavigate();
   const { sendMessage, isStreaming, createChat, availableModels, selectedModelId, selectModel } = useChat();
@@ -43,6 +45,30 @@ export function ChatInput({ showScrollButton, onScrollToBottom }: {
       textarea.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
     }
   }, [message]);
+
+  // Auto-focus on empty chat welcome screen
+  useEffect(() => {
+    if (autoFocus && textareaRef.current) {
+      // Small delay to ensure the component is fully rendered and any animations are complete
+      const timer = setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [autoFocus]);
+
+  // Auto-focus when streaming completes (input becomes re-enabled)
+  useEffect(() => {
+    if (!isStreaming && textareaRef.current && !autoFocus) {
+      // Small delay to ensure the streaming state has fully updated
+      const timer = setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isStreaming, autoFocus]);
 
   const handleSend = async () => {
     if (!message.trim() && attachedFiles.length === 0) return;
@@ -102,6 +128,7 @@ export function ChatInput({ showScrollButton, onScrollToBottom }: {
       }
       
       console.log('[CHAT-INPUT] Message sent successfully');
+      
     } catch (error) {
       console.error('[CHAT-INPUT] Failed to send message:', error);
       // Restore message on error
@@ -200,25 +227,33 @@ export function ChatInput({ showScrollButton, onScrollToBottom }: {
       )}
     >
       <div className={cn(
-        "mx-auto space-y-3 transition-all duration-300 ease-in-out",
+        "mx-auto transition-all duration-300 ease-in-out",
         isSidebarOpen && !isMobile ? 'max-w-3xl' : 'max-w-4xl'
       )}>
 
 
-        {/* Scroll to bottom button */}
-        <div className={cn(
-          "flex justify-end pr-4 transition-all duration-300 ease-in-out",
-          showScrollButton 
-            ? "opacity-100 translate-y-0 pointer-events-auto" 
-            : "opacity-0 translate-y-2 pointer-events-none"
-        )}>
-          <Button
-            onClick={onScrollToBottom}
-            size="sm"
-            className="bg-primary text-primary-foreground w-10 h-10 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
-          >
-            <ArrowDown className="h-4 w-4" />
-          </Button>
+        {/* Branch info and scroll to bottom button */}
+        <div className="flex justify-between items-end pr-4">
+          {/* Branch info - positioned to align with text input */}
+          <div className="flex-1 flex justify-start pl-4">
+            {chatId && <ChatBranchInfo chatId={chatId} />}
+          </div>
+          
+          {/* Scroll to bottom button with margin */}
+          <div className={cn(
+            "mb-3 transition-all duration-300 ease-in-out",
+            showScrollButton 
+              ? "opacity-100 translate-y-0 pointer-events-auto" 
+              : "opacity-0 translate-y-2 pointer-events-none"
+          )}>
+            <Button
+              onClick={onScrollToBottom}
+              size="sm"
+              className="bg-primary text-primary-foreground w-10 h-10 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
+            >
+              <ArrowDown className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Main input container - glassmorphism overlay design */}
@@ -289,17 +324,8 @@ export function ChatInput({ showScrollButton, onScrollToBottom }: {
               </FileUpload>
             </div>
 
-            {/* Right side - Character count and Send button */}
+            {/* Right side - Send button */}
             <div className="flex items-center gap-3">
-              {message.length > 500 ? (
-                <span className={cn(
-                  "text-xs",
-                  message.length > 2000 ? "text-destructive" : "text-warning"
-                )}>
-                  {message.length} characters
-                </span>
-              ) : null}
-              
               {/* Send button with animated gradient border */}
               <div className="relative group">
                 {/* Animated border - now muted by default */}

@@ -1,18 +1,37 @@
-import { useParams } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
+import { useMemo } from 'react';
 import { useChatStore } from '../stores/chatStore';
 
 /**
  * Hook that derives current chat state from URL parameters.
  * This replaces the pattern of using activeChatId from global state.
+ * 
+ * Note: We use useLocation instead of useParams because this hook
+ * is called from components outside the Routes (like AppSidebar).
  */
 export function useCurrentChat() {
-  const { chatId } = useParams<{ chatId?: string }>();
+  const location = useLocation();
   const { chats, messages, loadingChatId } = useChatStore();
   
-  // Derive all state from URL chatId
-  const currentChat = chatId ? chats.find(c => c.id === chatId) : null;
-  const currentMessages = chatId ? messages[chatId] || [] : [];
-  const isLoadingChat = chatId ? loadingChatId === chatId : false;
+  // Extract chatId from pathname manually since useParams doesn't work outside Routes
+  const chatId = useMemo(() => {
+    return location.pathname.startsWith('/chat/') 
+      ? location.pathname.slice(6) // Remove '/chat/' prefix
+      : undefined;
+  }, [location.pathname]);
+  
+  // Derive all state from URL chatId - memoized for performance
+  const currentChat = useMemo(() => {
+    return chatId ? chats.find(c => c.id === chatId) : null;
+  }, [chatId, chats]);
+  
+  const currentMessages = useMemo(() => {
+    return chatId ? messages[chatId] || [] : [];
+  }, [chatId, messages]);
+  
+  const isLoadingChat = useMemo(() => {
+    return chatId ? loadingChatId === chatId : false;
+  }, [chatId, loadingChatId]);
   
   return { 
     chatId, 

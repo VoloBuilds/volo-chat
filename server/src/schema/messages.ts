@@ -9,6 +9,9 @@ export interface Attachment {
   fileSize: number;
   url?: string; // Optional as it may not be available until uploaded to R2
   status?: 'pending' | 'uploaded' | 'failed';
+  type?: 'file' | 'branch_link'; // New field for branch links
+  originalChatId?: string; // For branch links
+  branchPointMessageId?: string; // For branch links
 }
 
 export const messages = appSchema.table('messages', {

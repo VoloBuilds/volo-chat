@@ -18,25 +18,38 @@ export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
+  const [isSignInMode, setIsSignInMode] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     try {
-      await signInWithEmailAndPassword(auth, email, password)
-    } catch (err: any) {
-      // If user doesn't exist, automatically register them
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-        try {
-          await createUserWithEmailAndPassword(auth, email, password)
-          console.log('User automatically registered and signed in')
-        } catch (registerErr: any) {
-          setError(`Failed to register: ${registerErr.message}`)
-          console.error('Registration error:', registerErr)
-        }
+      if (isSignInMode) {
+        // Sign in mode - try to sign in directly
+        await signInWithEmailAndPassword(auth, email, password)
       } else {
+        // Register mode - try to register first
+        await createUserWithEmailAndPassword(auth, email, password)
+        console.log('User registered and signed in')
+      }
+    } catch (err: any) {
+      if (isSignInMode) {
         setError("Failed to sign in. Please check your credentials.")
-        console.error(err)
+        console.error('Sign in error:', err)
+      } else {
+        // In register mode, if user already exists, try to sign them in
+        if (err.code === 'auth/email-already-in-use') {
+          try {
+            await signInWithEmailAndPassword(auth, email, password)
+            console.log('User already exists, signed in instead')
+          } catch (signInErr: any) {
+            setError("Account exists but password is incorrect.")
+            console.error('Sign in error after registration attempt:', signInErr)
+          }
+        } else {
+          setError(`Failed to register: ${err.message}`)
+          console.error('Registration error:', err)
+        }
       }
     }
   }
@@ -50,11 +63,21 @@ export function LoginForm() {
     }
   }
 
+  const toggleMode = () => {
+    setIsSignInMode(!isSignInMode)
+    setError("") // Clear any existing errors when switching modes
+  }
+
   return (
     <Card className="w-[350px]">
       <CardHeader>
-        <CardTitle>Login</CardTitle>
-        <CardDescription>Enter your credentials to access your account.</CardDescription>
+        <CardTitle>{isSignInMode ? "Sign In" : "Register"}</CardTitle>
+        <CardDescription>
+          {isSignInMode 
+            ? "Enter your credentials to access your account." 
+            : "Create a new account to get started."
+          }
+        </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
         <CardContent>
@@ -67,6 +90,7 @@ export function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                className="bg-zinc-50 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-600"
               />
             </div>
             <div className="flex flex-col space-y-1.5">
@@ -77,19 +101,22 @@ export function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                className="bg-zinc-50 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-600"
               />
             </div>
             {error && <p className="text-sm text-red-500">{error}</p>}
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-2">
-          <Button type="submit" className="w-full">Sign in / Register</Button>
+          <Button type="submit" className="w-full">
+            {isSignInMode ? "Sign In" : "Register"}
+          </Button>
           <div className="relative w-full">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+              <span className="bg-background px-2 my-2 text-muted-foreground">Or continue with</span>
             </div>
           </div>
           <Button 
@@ -101,6 +128,16 @@ export function LoginForm() {
             <GoogleIcon />
             Sign in with Google
           </Button>
+          <div className="text-center text-sm text-muted-foreground mt-4">
+            {isSignInMode ? "Don't have an account? " : "Already have an account? "}
+            <button
+              type="button"
+              onClick={toggleMode}
+              className="text-primary hover:underline"
+            >
+              {isSignInMode ? "Register" : "Sign In"}
+            </button>
+          </div>
         </CardFooter>
       </form>
     </Card>

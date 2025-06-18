@@ -13,6 +13,10 @@ interface ChatState {
   chats: Chat[];
   chatsLoaded: boolean;
   
+  // Pinned chats
+  pinnedChats: string[];
+  pinnedChatsLoaded: boolean;
+  
   // Messages
   messages: Record<string, Message[]>;
   streamingMessageId: string | null;
@@ -37,11 +41,17 @@ interface ChatState {
   preloadRecentChats: () => Promise<void>; // New method for background loading
   updateChatTitle: (chatId: string, title: string) => Promise<void>;
   generateChatTitle: (chatId: string, firstMessage: string) => Promise<void>;
+  loadPinnedChats: () => Promise<void>;
+  pinChat: (chatId: string) => Promise<void>;
+  unpinChat: (chatId: string) => Promise<void>;
+  deleteChat: (chatId: string) => Promise<void>;
+  branchChatFromMessage: (chatId: string, messageId: string) => Promise<string>;
 }
 
 // Default model preference - Gemini Flash
 const DEFAULT_MODEL_PREFERENCES = [
-  'gemini-1.5-flash',
+  'google/gemini-2.5-flash-lite-preview-06-17',
+  'gemini-2.5-flash',
   'gpt-4o-mini',
   'claude-3-5-haiku',
   'gpt-4o',
@@ -71,6 +81,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   selectedModelId: '',
   chats: [],
   chatsLoaded: false,
+  pinnedChats: [],
+  pinnedChatsLoaded: false,
   messages: {},
   streamingMessageId: null,
   isSidebarOpen: true,
@@ -81,7 +93,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // Actions
   loadModels: async () => {
-    const { modelsLoaded, isLoading } = get();
+    const { modelsLoaded, isLoading, selectedModelId } = get();
     
     // Prevent multiple simultaneous calls
     if (modelsLoaded || isLoading) {
@@ -94,31 +106,56 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const models = await aiService.getAvailableModels();
       console.log('Models loaded:', models);
       
-      // Find the best default model based on preferences
-      let defaultModelId = '';
-      for (const preferredModel of DEFAULT_MODEL_PREFERENCES) {
-        const foundModel = models.find(m => m.id.includes(preferredModel) && m.isAvailable);
-        if (foundModel) {
-          defaultModelId = foundModel.id;
-          console.log('Selected default model:', defaultModelId);
-          break;
-        }
-      }
+      // Only set a default model if no model is currently selected
+      let finalSelectedModelId = selectedModelId;
       
-      // Fallback to first available model if no preferred model found
-      if (!defaultModelId && models.length > 0) {
-        const availableModel = models.find(m => m.isAvailable);
-        defaultModelId = availableModel ? availableModel.id : models[0].id;
-        console.log('Using fallback default model:', defaultModelId);
+      if (!selectedModelId) {
+        // Find the best default model based on preferences
+        let defaultModelId = '';
+        for (const preferredModel of DEFAULT_MODEL_PREFERENCES) {
+          const foundModel = models.find(m => m.id.includes(preferredModel) && m.isAvailable);
+          if (foundModel) {
+            defaultModelId = foundModel.id;
+            console.log('Selected default model:', defaultModelId);
+            break;
+          }
+        }
+        
+        // Fallback to first available model if no preferred model found
+        if (!defaultModelId && models.length > 0) {
+          const availableModel = models.find(m => m.isAvailable);
+          defaultModelId = availableModel ? availableModel.id : models[0].id;
+          console.log('Using fallback default model:', defaultModelId);
+        }
+        
+        finalSelectedModelId = defaultModelId;
+      } else {
+        // User has already selected a model, verify it's still available
+        const userSelectedModel = models.find(m => m.id === selectedModelId);
+        if (!userSelectedModel || !userSelectedModel.isAvailable) {
+          console.log('User selected model no longer available, selecting fallback:', selectedModelId);
+          
+          // Find a fallback only if user's choice is not available
+          for (const preferredModel of DEFAULT_MODEL_PREFERENCES) {
+            const foundModel = models.find(m => m.id.includes(preferredModel) && m.isAvailable);
+            if (foundModel) {
+              finalSelectedModelId = foundModel.id;
+              console.log('Fallback model for unavailable selection:', finalSelectedModelId);
+              break;
+            }
+          }
+        } else {
+          console.log('Keeping user selected model:', selectedModelId);
+        }
       }
       
       set({ 
         availableModels: models,
-        selectedModelId: defaultModelId,
+        selectedModelId: finalSelectedModelId,
         modelsLoaded: true
       });
       
-      console.log('Model loading complete. Available models:', models.length, 'Selected:', defaultModelId);
+      console.log('Model loading complete. Available models:', models.length, 'Selected:', finalSelectedModelId);
     } catch (error) {
       console.error('Failed to load models:', error);
       set({ availableModels: [], selectedModelId: '', modelsLoaded: true });
@@ -159,7 +196,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }
         } else {
           // Models haven't loaded yet, use a reasonable default
-          modelIdToUse = 'gemini-1.5-flash';
+          modelIdToUse = 'google/gemini-2.5-flash-lite-preview-06-17';
           set({ selectedModelId: modelIdToUse });
         }
       }
@@ -225,51 +262,53 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendMessage: async (chatId: string, content: string, attachments?: File[], existingBlobUrls?: Map<File, string>) => {
-    const { selectedModelId } = get();
-    
-    console.log('[CHAT-STORE] sendMessage called:', {
-      chatId,
-      modelId: selectedModelId,
-      contentLength: content.length,
-      attachmentsCount: attachments?.length || 0,
-      existingBlobUrlsCount: existingBlobUrls?.size || 0
-    });
-    
-    if (!chatId) {
-      throw new Error('No chatId provided');
-    }
+    // Declare IDs outside try block so they're accessible in catch
+    const tempUserMessageId = `temp-user-${Date.now()}`;
+    const tempAssistantMessageId = `temp-assistant-${Date.now()}`;
 
     try {
-      // 1. CREATE STABLE OPTIMISTIC ATTACHMENTS (reuse existing blob URLs)
+      let { selectedModelId } = get();
+      
+      // Ensure we have a valid model selected before proceeding
+      if (!selectedModelId) {
+        console.log('[CHAT-STORE] No model selected, loading models and selecting default...');
+        await get().loadModels();
+        selectedModelId = get().selectedModelId;
+        
+        // If still no model after loading, this indicates a serious issue
+        if (!selectedModelId) {
+          throw new Error('No models available - check your API configuration');
+        }
+      }
+      
+      console.log('[CHAT-STORE] Starting sendMessage flow with model:', selectedModelId);
+
+      // 2. CREATE OPTIMISTIC ATTACHMENTS
       let optimisticAttachments: Attachment[] | undefined;
       if (attachments && attachments.length > 0) {
-        optimisticAttachments = attachments.map((file) => {
-          const stableId = `stable-${crypto.randomUUID()}`; // Use "stable" prefix for consistency
-          const existingBlobUrl = existingBlobUrls?.get(file);
+        console.log('[CHAT-STORE] Creating optimistic attachments');
+        optimisticAttachments = attachments.map((file, index) => {
+          // Check for existing blob URL first
+          let previewUrl = existingBlobUrls?.get(file);
+          
+          // Create new blob URL only if we don't have one
+          if (!previewUrl && file.type.startsWith('image/')) {
+            previewUrl = URL.createObjectURL(file);
+          }
           
           return {
-            id: stableId,
+            id: `temp-attachment-${Date.now()}-${index}`,
             filename: file.name,
             fileType: file.type,
             fileSize: file.size,
+            previewUrl,
             status: 'uploading' as const,
-            file,
-            previewUrl: existingBlobUrl || URL.createObjectURL(file), // Reuse or create blob URL
+            createdAt: new Date(),
           };
         });
-        
-        console.log('[CHAT-STORE] Created optimistic attachments:', optimisticAttachments.map(att => ({
-          id: att.id,
-          filename: att.filename,
-          hasPreviewUrl: !!att.previewUrl,
-          reusingBlobUrl: !!existingBlobUrls?.has(att.file!)
-        })));
       }
 
-      // 2. CREATE OPTIMISTIC MESSAGES IMMEDIATELY 
-      const tempUserMessageId = 'temp-user-' + crypto.randomUUID();
-      const tempAssistantMessageId = 'temp-assistant-' + crypto.randomUUID();
-
+      // 3. CREATE OPTIMISTIC MESSAGES
       const tempUserMessage: Message = {
         id: tempUserMessageId,
         chatId,
@@ -382,6 +421,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       let updateTimeout: NodeJS.Timeout | null = null;
       let pendingUpdate = false;
       let chunkCount = 0;
+      let realUserMessageId: string | null = null;
+      let realAssistantMessageId: string | null = null;
       
       const throttledUpdate = (content: string) => {
         if (pendingUpdate) return;
@@ -403,16 +444,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
           pendingUpdate = false;
         }, 50); // Update UI at most every 50ms
       };
+
+      // Get the streaming response with HTTP-based streaming that includes message events
+      const streamResponse = await api.streamChatResponse({
+        chatId,
+        content,
+        modelId: selectedModelId,
+        attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined
+      });
+
+      // Custom stream processing to handle server events
+      const streamWithEventHandling = async function* () {
+        try {
+          for await (const chunk of streamResponse) {
+            // Check if this is an SSE event data (should be handled by streamChatResponse)
+            // but we need to access the events here for message ID replacement
+            fullContent += chunk;
+            chunkCount++;
+            yield chunk;
+          }
+        } catch (error) {
+          // Re-throw streaming errors
+          throw error;
+        }
+      };
       
-      for await (const chunk of aiService.streamMessage(
-        chatId, 
-        content, 
-        selectedModelId, 
-        uploadedAttachments.length > 0 ? uploadedAttachments : undefined
-      )) {
-        fullContent += chunk;
-        chunkCount++;
-        
+      // Process the stream
+      for await (const chunk of streamWithEventHandling()) {
         // Use throttled update instead of immediate update
         throttledUpdate(fullContent);
       }
@@ -434,18 +492,74 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
       }));
 
-      // 7. FINALIZE: Mark messages as non-optimistic
-      set(state => ({
-        messages: {
-          ...state.messages,
-          [chatId]: state.messages[chatId].map(msg =>
-            msg.id === tempUserMessageId || msg.id === tempAssistantMessageId
-              ? { ...msg, isOptimistic: false, isStreaming: false }
-              : msg
-          )
-        },
-        streamingMessageId: null
-      }));
+      // 7. FINALIZE: Mark messages as non-optimistic and replace temp IDs with real ones
+      // Since we don't have access to the real IDs from the current streaming setup,
+      // we need to fetch the latest messages to get the real IDs
+      try {
+        console.log('[CHAT-STORE] Fetching real message IDs from server');
+        const { messages: latestMessages } = await api.getChat(chatId);
+        const realMessages = latestMessages.slice(-2); // Get the last 2 messages (user + assistant)
+        
+        if (realMessages.length >= 2) {
+          const realUserMsg = realMessages[0];
+          const realAssistantMsg = realMessages[1];
+          
+          // Replace temporary messages with real ones from server
+          set(state => ({
+            messages: {
+              ...state.messages,
+              [chatId]: state.messages[chatId].map(msg => {
+                if (msg.id === tempUserMessageId) {
+                  return {
+                    ...realUserMsg,
+                    attachments: msg.attachments, // Keep uploaded attachments from optimistic update
+                    createdAt: typeof realUserMsg.createdAt === 'string' ? new Date(realUserMsg.createdAt) : realUserMsg.createdAt,
+                  };
+                } else if (msg.id === tempAssistantMessageId) {
+                  return {
+                    ...realAssistantMsg,
+                    createdAt: typeof realAssistantMsg.createdAt === 'string' ? new Date(realAssistantMsg.createdAt) : realAssistantMsg.createdAt,
+                  };
+                }
+                return msg;
+              })
+            },
+            streamingMessageId: null
+          }));
+          
+          console.log('[CHAT-STORE] Successfully replaced temporary IDs with real server IDs');
+        } else {
+          // Fallback: just mark as non-optimistic without ID replacement
+          set(state => ({
+            messages: {
+              ...state.messages,
+              [chatId]: state.messages[chatId].map(msg =>
+                msg.id === tempUserMessageId || msg.id === tempAssistantMessageId
+                  ? { ...msg, isOptimistic: false, isStreaming: false }
+                  : msg
+              )
+            },
+            streamingMessageId: null
+          }));
+          
+          console.warn('[CHAT-STORE] Could not get real message IDs, keeping temporary IDs');
+        }
+      } catch (fetchError) {
+        console.error('[CHAT-STORE] Failed to fetch real message IDs:', fetchError);
+        
+        // Fallback: just mark as non-optimistic
+        set(state => ({
+          messages: {
+            ...state.messages,
+            [chatId]: state.messages[chatId].map(msg =>
+              msg.id === tempUserMessageId || msg.id === tempAssistantMessageId
+                ? { ...msg, isOptimistic: false, isStreaming: false }
+                : msg
+            )
+          },
+          streamingMessageId: null
+        }));
+      }
 
       console.log('[CHAT-STORE] Message flow completed successfully');
 
@@ -554,32 +668,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
     
-    try {
-      console.log('[CHAT-STORE] switchToChat called:', id);
-      
-              // 1. Check if messages are already loaded or cached
-        if (messages[id] || messageCache[id]) {
-          console.log('[CHAT-STORE] Using cached messages for chat:', id);
-          if (messageCache[id] && !messages[id]) {
-            // Restore from cache
-            set(state => ({
-              messages: {
-                ...state.messages,
-                [id]: state.messageCache[id]
-              }
-            }));
+    // Optimized: Check both messages and cache first
+    if (messages[id] || messageCache[id]) {
+      console.log('[CHAT-STORE] Using cached/loaded messages for chat:', id);
+      if (messageCache[id] && !messages[id]) {
+        // Restore from cache instantly without triggering a re-render loop
+        set(state => ({
+          messages: {
+            ...state.messages,
+            [id]: state.messageCache[id]
           }
-          return;
-        }
-        
-        // 2. Load messages if not cached
-        set({ loadingChatId: id });
-        console.log('[CHAT-STORE] Loading messages for chat:', id);
-        
-        const { messages: chatMessages } = await api.getChat(id);
-        const parsedMessages = chatMessages.map(parseMessage);
-        
-        // 3. Update messages and cache
+        }));
+      }
+      return;
+    }
+    
+    try {
+      console.log('[CHAT-STORE] Loading messages for chat:', id);
+      
+      // Set loading state
+      set({ loadingChatId: id });
+      
+      const { messages: chatMessages } = await api.getChat(id);
+      const parsedMessages = chatMessages.map(parseMessage);
+      
+      // Single atomic update to prevent multiple re-renders
       set(state => ({
         messages: {
           ...state.messages,
@@ -662,7 +775,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const result = await api.generateTitle({
         chatId,
         content: firstMessage,
-        modelId: selectedModelId || 'gemini-1.5-flash'
+        modelId: selectedModelId || 'google/gemini-2.5-flash-lite-preview-06-17'
       });
       
       // Update the chat title
@@ -671,6 +784,131 @@ export const useChatStore = create<ChatState>((set, get) => ({
       console.log('[CHAT-STORE] Generated title:', result.title);
     } catch (error) {
       console.error('Failed to generate chat title:', error);
+      throw error;
+    }
+  },
+
+  loadPinnedChats: async () => {
+    const { pinnedChatsLoaded } = get();
+    
+    if (pinnedChatsLoaded) {
+      return;
+    }
+    
+    try {
+      console.log('[CHAT-STORE] Loading pinned chats...');
+      const pinnedChats = await api.getUserPinnedChats();
+      
+      set({ 
+        pinnedChats,
+        pinnedChatsLoaded: true 
+      });
+      
+      console.log('[CHAT-STORE] Loaded pinned chats:', pinnedChats);
+    } catch (error) {
+      console.error('Failed to load pinned chats:', error);
+      set({ pinnedChats: [], pinnedChatsLoaded: true });
+    }
+  },
+
+  pinChat: async (chatId: string) => {
+    const { pinnedChats } = get();
+    
+    // Optimistic update - add to pinned chats immediately
+    const optimisticPinnedChats = [...pinnedChats, chatId];
+    set({ pinnedChats: optimisticPinnedChats });
+    
+    console.log('[CHAT-STORE] Optimistically pinned chat:', chatId);
+    
+    try {
+      // Call API in background
+      const updatedPinnedChats = await api.pinChat(chatId);
+      
+      // Update with server response (in case server has different state)
+      set({ pinnedChats: updatedPinnedChats });
+      
+      console.log('[CHAT-STORE] Chat pinned successfully confirmed by server:', chatId);
+    } catch (error) {
+      console.error('Failed to pin chat, reverting:', error);
+      
+      // Revert optimistic update on error
+      set({ pinnedChats });
+      
+      throw error;
+    }
+  },
+
+  unpinChat: async (chatId: string) => {
+    const { pinnedChats } = get();
+    
+    // Optimistic update - remove from pinned chats immediately
+    const optimisticPinnedChats = pinnedChats.filter(id => id !== chatId);
+    set({ pinnedChats: optimisticPinnedChats });
+    
+    console.log('[CHAT-STORE] Optimistically unpinned chat:', chatId);
+    
+    try {
+      // Call API in background
+      const updatedPinnedChats = await api.unpinChat(chatId);
+      
+      // Update with server response (in case server has different state)
+      set({ pinnedChats: updatedPinnedChats });
+      
+      console.log('[CHAT-STORE] Chat unpinned successfully confirmed by server:', chatId);
+    } catch (error) {
+      console.error('Failed to unpin chat, reverting:', error);
+      
+      // Revert optimistic update on error
+      set({ pinnedChats });
+      
+      throw error;
+    }
+  },
+
+  deleteChat: async (chatId: string) => {
+    try {
+      console.log('[CHAT-STORE] Deleting chat:', chatId);
+      
+      // Call API to delete chat
+      await api.deleteChat(chatId);
+      
+      // Remove chat from store
+      set(state => {
+        const { [chatId]: deletedMessages, ...remainingMessages } = state.messages;
+        const { [chatId]: deletedCache, ...remainingCache } = state.messageCache;
+        
+        return {
+          chats: state.chats.filter(chat => chat.id !== chatId),
+          messages: remainingMessages,
+          messageCache: remainingCache,
+          pinnedChats: state.pinnedChats.filter(id => id !== chatId) // Remove from pinned if present
+        };
+      });
+      
+      console.log('[CHAT-STORE] Chat deleted successfully:', chatId);
+    } catch (error) {
+      console.error('Failed to delete chat:', error);
+      throw error;
+    }
+  },
+
+  branchChatFromMessage: async (chatId: string, messageId: string) => {
+    try {
+      console.log('[CHAT-STORE] Branching chat from message:', { chatId, messageId });
+      
+      const result = await api.branchChatFromMessage(chatId, messageId);
+      const newChat = parseChat(result.chat);
+      
+      // Add the new branched chat to the store
+      set(state => ({
+        chats: [newChat, ...state.chats]
+      }));
+      
+      console.log('[CHAT-STORE] Chat branched successfully:', newChat.id);
+      
+      return newChat.id;
+    } catch (error) {
+      console.error('Failed to branch chat:', error);
       throw error;
     }
   },

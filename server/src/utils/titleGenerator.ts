@@ -15,8 +15,8 @@ export interface TitleGenerationResult {
 }
 
 export class TitleGenerator {
-  private aiManager: AIProviderManager;
-  private readonly DEFAULT_MODEL = 'gemini-2.5-flash-preview-05-20';
+  private readonly aiManager: AIProviderManager;
+  private readonly DEFAULT_MODEL = 'google/gemini-2.5-flash-lite-preview-06-17';
   private readonly MAX_TITLE_LENGTH = 60;
   private readonly FALLBACK_WORDS = 4;
 

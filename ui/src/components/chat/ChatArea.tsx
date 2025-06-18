@@ -32,6 +32,7 @@ export function ChatArea() {
       <ChatInput 
         showScrollButton={showScrollButton}
         onScrollToBottom={scrollToBottom || undefined}
+        autoFocus={showWelcome}
       />
     </div>
   );

@@ -23,14 +23,6 @@ export function useSmartScroll(messages: Message[], isStreaming: boolean) {
     const { scrollTop, scrollHeight, clientHeight } = viewport;
     const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 3; // Very precise threshold
     
-    console.log('[useSmartScroll] Bottom check:', {
-      scrollTop,
-      scrollHeight,
-      clientHeight,
-      isAtBottom,
-      diff: scrollHeight - clientHeight - scrollTop
-    });
-    
     return isAtBottom;
   }, [getScrollViewport]);
 
@@ -39,8 +31,18 @@ export function useSmartScroll(messages: Message[], isStreaming: boolean) {
     const viewport = getScrollViewport();
     if (!viewport) return;
     
-    console.log('[useSmartScroll] Scrolling to bottom with behavior:', behavior);
-    viewport.scrollTop = viewport.scrollHeight;
+    // Calculate the correct scroll position to reach the bottom
+    const { scrollHeight, clientHeight } = viewport;
+    const targetScrollTop = scrollHeight - clientHeight;
+    
+    if (behavior === 'smooth') {
+      viewport.scrollTo({
+        top: targetScrollTop,
+        behavior: 'smooth'
+      });
+    } else {
+      viewport.scrollTop = targetScrollTop;
+    }
   }, [getScrollViewport]);
 
   // User scroll detection - very responsive
@@ -88,7 +90,6 @@ export function useSmartScroll(messages: Message[], isStreaming: boolean) {
   useEffect(() => {
     const viewport = getScrollViewport();
     if (!viewport || !bottomRef.current) {
-      console.log('[useSmartScroll] Missing viewport or bottomRef');
       return;
     }
 
@@ -97,12 +98,9 @@ export function useSmartScroll(messages: Message[], isStreaming: boolean) {
       observerRef.current.disconnect();
     }
 
-    console.log('[useSmartScroll] Setting up intersection observer');
-
     observerRef.current = new IntersectionObserver(
       ([entry]) => {
         const atBottom = entry.isIntersecting;
-        console.log('[useSmartScroll] Intersection changed:', { atBottom, ratio: entry.intersectionRatio });
         
         if (!isUserScrollingRef.current) {
           setIsAtBottom(atBottom);
@@ -130,30 +128,58 @@ export function useSmartScroll(messages: Message[], isStreaming: boolean) {
   // ChatGPT-style gravity scroll: Only scroll if at bottom and not user scrolling
   useEffect(() => {
     if (isAtBottom && !isUserScrollingRef.current) {
-      console.log('[useSmartScroll] Gravity scroll: staying at bottom');
-      
       // Use requestAnimationFrame to ensure DOM is updated
       requestAnimationFrame(() => {
         scrollToBottom('auto');
       });
     }
-  }, [messages, isAtBottom, scrollToBottom]);
+  }, [messages, isAtBottom, scrollToBottom, isStreaming]); // Include isStreaming for more responsive streaming
+
+  // Initial scroll to bottom when messages are first loaded
+  useEffect(() => {
+    if (messages.length > 0 && isAtBottom && !isUserScrollingRef.current) {
+      // For initial load, ensure we scroll to bottom after DOM is ready
+      // Use a slight delay to ensure proper rendering
+      const timeoutId = setTimeout(() => {
+        scrollToBottom('auto');
+      }, 50);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [messages.length, isAtBottom, scrollToBottom]); // Include all dependencies
+
+  // Aggressive scroll maintenance during streaming
+  useEffect(() => {
+    if (isStreaming && isAtBottom && !isUserScrollingRef.current) {
+      // During streaming, more aggressively maintain bottom position
+      // This ensures smooth following as content grows
+      const intervalId = setInterval(() => {
+        const viewport = getScrollViewport();
+        if (viewport) {
+          const { scrollHeight, clientHeight, scrollTop } = viewport;
+          const targetScrollTop = scrollHeight - clientHeight;
+          const currentDistanceFromBottom = targetScrollTop - scrollTop;
+          
+          // If we're more than 5px away from bottom, snap back
+          if (currentDistanceFromBottom > 5) {
+            viewport.scrollTop = targetScrollTop;
+          }
+        }
+      }, 50); // Check every 50ms during streaming
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [isStreaming, isAtBottom, getScrollViewport]);
 
   // Manual scroll to bottom function
   const handleScrollToBottom = useCallback(() => {
-    console.log('[useSmartScroll] Manual scroll to bottom');
     setShowScrollButton(false);
     setIsAtBottom(true);
     isUserScrollingRef.current = false;
     
-    // Use smooth scrollIntoView for manual scroll
-    if (bottomRef.current) {
-      bottomRef.current.scrollIntoView({ 
-        behavior: 'smooth',
-        block: 'end'
-      });
-    }
-  }, []);
+    // Use the same scrolling logic for consistency
+    scrollToBottom('smooth');
+  }, [scrollToBottom]);
 
   return {
     scrollAreaRef,

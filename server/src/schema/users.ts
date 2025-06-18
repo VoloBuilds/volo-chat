@@ -8,6 +8,7 @@ export const users = appSchema.table('users', {
   email: text('email').unique().notNull(),
   display_name: text('display_name'),
   photo_url: text('photo_url'),
+  pinned_chats: text('pinned_chats').array().default([]).notNull(),
   created_at: timestamp('created_at').defaultNow().notNull(),
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });

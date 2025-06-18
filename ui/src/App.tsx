@@ -2,9 +2,10 @@ import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { ThemeProvider } from "@/components/theme-provider";
 import { LoginForm } from '@/components/login-form';
 import { Navbar } from '@/components/navbar';
-import { AppSidebar } from '@/components/appSidebar';
+import { AppSidebar } from '@/components/sidebar/appSidebar';
 import { Settings } from '@/pages/Settings';
 import { Chat } from '@/pages/Chat';
+import { Toaster } from '@/components/ui/sonner';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import {
   SidebarProvider,
@@ -53,6 +54,7 @@ function AppContent() {
           </div>
         )}
       </div>
+      <Toaster />
     </SidebarProvider>
   );
 }

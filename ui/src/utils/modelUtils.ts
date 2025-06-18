@@ -15,7 +15,8 @@ const ANALYSIS_CAPABLE_MODELS = [
   'o1-preview',
   'o1-mini',
   
-  // Gemini models (prioritize 2.5 Flash Preview)
+  // Gemini models (prioritize the user's requested model)
+  'google/gemini-2.5-flash-lite-preview-06-17',
   'gemini-2.5-flash-preview-05-20',
   'gemini-2.5-flash-preview',
   'gemini-2.5-flash',
@@ -91,6 +92,7 @@ export function findBestAnalysisModel(availableModels: AIModel[], currentModelId
       const id = model.id.toLowerCase();
       
       // Prioritize the specific Gemini model the user requested
+      if (name.includes('gemini 2.5 flash lite preview 06-17') || id.includes('google/gemini-2.5-flash-lite-preview-06-17')) return 16;
       if (name.includes('gemini 2.5 flash preview 05-20') || id.includes('gemini-2.5-flash-preview-05-20')) return 15;
       if (name.includes('gemini 2.5 flash preview') || id.includes('gemini-2.5-flash-preview')) return 14;
       if (name.includes('gemini 2.5 flash') || id.includes('gemini-2.5-flash')) return 13;

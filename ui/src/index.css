@@ -10,77 +10,77 @@
   -moz-osx-font-smoothing: grayscale;
   --radius: 0.5rem;
   
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.21 0.006 285.885);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
+  --background: oklch(0.98 0.002 286);
+  --foreground: oklch(0.25 0.008 286);
+  --card: oklch(0.985 0.001 286);
+  --card-foreground: oklch(0.25 0.008 286);
+  --popover: oklch(0.985 0.001 286);
+  --popover-foreground: oklch(0.25 0.008 286);
+  --primary: oklch(0.3 0.008 286);
+  --primary-foreground: oklch(0.98 0.002 286);
+  --secondary: oklch(0.95 0.002 286);
+  --secondary-foreground: oklch(0.3 0.008 286);
+  --muted: oklch(0.95 0.002 286);
+  --muted-foreground: oklch(0.55 0.012 286);
+  --accent: oklch(0.95 0.002 286);
+  --accent-foreground: oklch(0.3 0.008 286);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.705 0.015 286.067);
+  --border: oklch(0.9 0.003 286);
+  --input: oklch(0.9 0.003 286);
+  --ring: oklch(0.65 0.012 286);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.21 0.006 285.885);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.705 0.015 286.067);
+  --sidebar: oklch(0.97 0.002 286);
+  --sidebar-foreground: oklch(0.25 0.008 286);
+  --sidebar-primary: oklch(0.3 0.008 286);
+  --sidebar-primary-foreground: oklch(0.97 0.002 286);
+  --sidebar-accent: oklch(0.94 0.002 286);
+  --sidebar-accent-foreground: oklch(0.3 0.008 286);
+  --sidebar-border: oklch(0.9 0.003 286);
+  --sidebar-ring: oklch(0.65 0.012 286);
   /* Scrollbar (light mode) */
-  --scrollbar-thumb: #c1c1c1;
-  --scrollbar-thumb-hover: #9e9e9e;
+  --scrollbar-thumb: #b8b8b8;
+  --scrollbar-thumb-hover: #a0a0a0;
 }
 
 .dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.21 0.006 285.885);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.18 0.006 286);
+  --foreground: oklch(0.92 0.003 286);
+  --card: oklch(0.22 0.008 286);
+  --card-foreground: oklch(0.92 0.003 286);
+  --popover: oklch(0.22 0.008 286);
+  --popover-foreground: oklch(0.92 0.003 286);
+  --primary: oklch(0.85 0.004 286);
+  --primary-foreground: oklch(0.22 0.008 286);
+  --secondary: oklch(0.3 0.008 286);
+  --secondary-foreground: oklch(0.92 0.003 286);
+  --muted: oklch(0.3 0.008 286);
+  --muted-foreground: oklch(0.7 0.008 286);
+  --accent: oklch(0.3 0.008 286);
+  --accent-foreground: oklch(0.92 0.003 286);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.552 0.016 285.938);
+  --border: oklch(0.35 0.008 286);
+  --input: oklch(0.25 0.008 286);
+  --ring: oklch(0.6 0.01 286);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.552 0.016 285.938);
+  --sidebar: oklch(0.24 0.008 286);
+  --sidebar-foreground: oklch(0.92 0.003 286);
+  --sidebar-primary: oklch(0.75 0.015 286);
+  --sidebar-primary-foreground: oklch(0.24 0.008 286);
+  --sidebar-accent: oklch(0.32 0.008 286);
+  --sidebar-accent-foreground: oklch(0.92 0.003 286);
+  --sidebar-border: oklch(0.35 0.008 286);
+  --sidebar-ring: oklch(0.6 0.01 286);
   /* Scrollbar (dark mode) */
-  --scrollbar-thumb: #424242;
-  --scrollbar-thumb-hover: #585858;
+  --scrollbar-thumb: #4a4a4a;
+  --scrollbar-thumb-hover: #606060;
 }
 
 /* Smooth theme transitions - only on specific elements that need it */
@@ -168,6 +168,26 @@ button {
   }
 }
 
+@keyframes stream-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes cursor-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
 .animate-fade-in {
   animation: fade-in 0.5s ease-out;
 }
@@ -175,3 +195,169 @@ button {
 .animate-type-in {
   animation: type-in 0.3s ease-in;
 }
+
+.animate-stream-in {
+  animation: stream-in 0.3s ease-out;
+}
+
+/* Streaming container - smooth transitions */
+.streaming-container {
+  position: relative;
+  transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  overflow: hidden;
+}
+
+/* Content growing state - adds bottom shimmer */
+.content-growing::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  height: 60px;
+  width: 100%;
+  background: linear-gradient(
+    to top, 
+    var(--background) 0%,
+    var(--background) 30%,
+    transparent 100%
+  );
+  animation: bottom-shimmer 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Content wrapper with smooth expansion */
+.streaming-content-wrapper {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+/* Bottom reveal animation */
+.animate-bottom-reveal {
+  animation: content-expand 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes content-expand {
+  from {
+    transform: translateY(4px);
+    opacity: 0.9;
+  }
+  to {
+    transform: translateY(0px);
+    opacity: 1;
+  }
+}
+
+@keyframes bottom-shimmer {
+  0% {
+    opacity: 0.8;
+    transform: translateY(5px);
+  }
+  50% {
+    opacity: 0.4;
+    transform: translateY(2px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(0px);
+  }
+}
+
+/* Smooth content reveal for prose elements */
+.streaming-content .prose {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Responsive prose content handling */
+.prose {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.prose pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre;
+  word-wrap: normal;
+}
+
+.prose code {
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+/* Ensure code blocks don't expand parent containers */
+.prose > div {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Specific handling for syntax highlighter containers */
+.prose .group {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Force all nested elements to respect container width */
+.prose * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Specific handling for pre and code elements */
+.prose pre,
+.prose code {
+  max-width: 100%;
+  overflow-x: auto;
+  box-sizing: border-box;
+}
+
+/* Ensure SyntaxHighlighter doesn't expand */
+.prose .group > div:last-child {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Exclude buttons and interactive elements from width constraints */
+.prose button,
+.prose .group button,
+.prose [role="button"] {
+  max-width: none !important;
+}
+
+/* Responsive image constraints */
+.prose img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 767px) {
+  .prose {
+    font-size: 0.875rem; /* 14px */
+    line-height: 1.5;
+  }
+  
+  .prose h1 {
+    font-size: 1.125rem; /* 18px */
+  }
+  
+  .prose h2 {
+    font-size: 1rem; /* 16px */
+  }
+  
+  .prose h3 {
+    font-size: 0.875rem; /* 14px */
+  }
+  
+  .prose pre {
+    font-size: 0.75rem; /* 12px */
+  }
+  
+  .prose code {
+    font-size: 0.75rem; /* 12px */
+  }
+}
+

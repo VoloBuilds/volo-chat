@@ -21,6 +21,19 @@ export interface Chat {
   createdAt: Date;
   updatedAt: Date;
   messageCount: number;
+  
+  // Sharing fields
+  isShared?: boolean;
+  shareId?: string;
+  sharedAt?: Date;
+  
+  // Branching fields
+  isBranched?: boolean;
+  branchPointMessageId?: string;
+  branchedAt?: Date;
+  
+  // Common field
+  originalChatId?: string;
 }
 
 export interface Message {
@@ -42,6 +55,9 @@ export interface Attachment {
   fileSize: number;
   url?: string;
   status?: 'pending' | 'uploading' | 'uploaded' | 'error';
+  type?: 'file' | 'branch_link';
+  originalChatId?: string;
+  branchPointMessageId?: string;
   file?: File;
   previewUrl?: string;
 }
@@ -58,4 +74,42 @@ export interface UploadResult {
   file: File;
   attachment?: Attachment;
   error?: string;
+}
+
+export interface SharedChatResponse {
+  chat: {
+    id: string;
+    title: string;
+    modelId: string;
+    createdAt: Date;
+    messageCount: number;
+  };
+  messages: Message[];
+}
+
+export interface BranchedChatResponse {
+  chat: Chat;
+  messages: Message[];
+  branchPoint: {
+    messageId: string;
+    originalChatId: string;
+  };
+}
+
+export interface BranchResponse {
+  chat: Chat;
+  branchPoint: {
+    messageId: string;
+    originalChatId: string;
+  };
+  message: string;
+}
+
+export interface ChatMetadata {
+  chat: Chat;
+  originalChat?: Chat;
+  branches: Chat[];
+  isBranched: boolean;
+  hasOriginal: boolean;
+  branchCount: number;
 } 

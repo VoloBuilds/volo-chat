@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { 
   Share2, 
-  Copy, 
   Check, 
   MoreHorizontal, 
   Trash, 
   GitBranch,
-  ExternalLink,
   Pin,
   PinOff,
   Edit3

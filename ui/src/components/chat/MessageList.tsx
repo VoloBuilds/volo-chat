@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useChat } from '../../hooks/useChat';
 import { useSmartScroll } from '../../hooks/useSmartScroll';
@@ -6,21 +6,10 @@ import { useSidebar } from '../ui/sidebar';
 import { useIsMobile } from '../../hooks/use-mobile';
 import { ScrollArea } from '../ui/scroll-area';
 import { MessageBubble } from './MessageBubble';
-import { useChatStore } from '../../stores/chatStore';
+
 import { useCurrentChat } from '../../hooks/useCurrentChat';
 
-// Typing indicator component
-function TypingIndicator() {
-  return (
-    <div className="flex justify-start px-4 py-3">
-      <div className="flex space-x-1">
-        <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-        <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-        <div className="w-2 h-2 bg-muted-foreground/60 rounded-full animate-bounce"></div>
-      </div>
-    </div>
-  );
-}
+
 
 interface MessageListProps {
   onScrollStateChange?: (showScrollButton: boolean, scrollToBottom: () => void) => void;
@@ -31,12 +20,11 @@ export function MessageList({ onScrollStateChange }: MessageListProps = {}) {
   const { chatId } = useCurrentChat();
   const { open: isSidebarOpen, isMobile } = useSidebar();
   const isMobileScreen = useIsMobile();
-  const { branchChatFromMessage } = useChatStore();
+
   const navigate = useNavigate();
   const {
     scrollAreaRef,
     bottomRef,
-    isAtBottom,
     showScrollButton,
     scrollToBottom
   } = useSmartScroll(currentMessages, isStreaming);
@@ -133,7 +121,6 @@ export function MessageList({ onScrollStateChange }: MessageListProps = {}) {
                 <MessageBubble 
                   key={message.id}
                   message={message}
-                  isLast={isLast}
                   isFirst={index === 0}
                   canBranch={true}
                   onBranch={handleBranch}

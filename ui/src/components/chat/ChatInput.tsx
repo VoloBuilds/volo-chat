@@ -13,10 +13,10 @@ import { FileAttachment } from './FileAttachment';
 import { ChatBranchInfo } from './ChatBranchInfo';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { cn } from '../../lib/utils';
-import { Send, Paperclip, X, File, ArrowDown, Square } from 'lucide-react';
+import { Send, Paperclip, ArrowDown, Square } from 'lucide-react';
 import { Attachment } from '../../types/chat';
 import { v4 as uuidv4 } from 'uuid';
-import { requiresAnalysisModel, findBestAnalysisModel, getModelSwitchReason } from '../../utils/modelUtils';
+import { requiresAnalysisModel, findBestAnalysisModel } from '../../utils/modelUtils';
 
 export function ChatInput({ showScrollButton, onScrollToBottom, autoFocus }: { 
   showScrollButton?: boolean; 
@@ -192,13 +192,7 @@ export function ChatInput({ showScrollButton, onScrollToBottom, autoFocus }: {
     setAttachedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const openImageViewer = (attachment: Attachment) => {
-    if (attachment.file && attachment.fileType.startsWith('image/')) {
-      const src = URL.createObjectURL(attachment.file);
-      setViewingImage({ src, name: attachment.filename });
-      setImageViewerOpen(true);
-    }
-  };
+
 
   const closeImageViewer = () => {
     if (viewingImage?.src) {

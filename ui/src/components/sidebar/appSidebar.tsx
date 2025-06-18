@@ -1,6 +1,6 @@
 import { useState, memo, useCallback } from 'react';
-import { useLocation, useNavigate } from "react-router-dom";
-import { useChat } from '@/hooks/useChat';
+import { useNavigate } from "react-router-dom";
+
 import { useCurrentChat } from '@/hooks/useCurrentChat';
 import { useChatStore } from '@/stores/chatStore';
 import {
@@ -15,7 +15,7 @@ import { SidebarHeader as CustomSidebarHeader } from '@/components/sidebar/Sideb
 import { ChatList } from '@/components/chat/ChatList';
 
 export const AppSidebar = memo(function AppSidebar() {
-  const location = useLocation();
+
   const navigate = useNavigate();
   
   // Use store directly instead of useChat hook to avoid duplicate subscriptions
@@ -23,7 +23,7 @@ export const AppSidebar = memo(function AppSidebar() {
     chats, 
     chatsLoaded,
     pinnedChats,
-    createChat, 
+ 
     switchToChat,
     isLoading,
     pinChat,

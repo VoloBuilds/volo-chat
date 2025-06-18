@@ -98,9 +98,11 @@ export function FileAttachment({ attachment, onRemove, variant = 'detailed' }: F
     return (
       <div className="relative group">
         <div 
-          className="flex items-center gap-2 bg-muted/50 border border-border/50 rounded-lg px-3 py-2 hover:bg-muted/70 hover:border-border transition-all duration-200 cursor-pointer"
-          onClick={handleView}
-          disabled={isDownloading}
+          className={cn(
+            "flex items-center gap-2 bg-muted/50 border border-border/50 rounded-lg px-3 py-2 hover:bg-muted/70 hover:border-border transition-all duration-200",
+            isDownloading ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+          )}
+          onClick={isDownloading ? undefined : handleView}
         >
           {getFileIcon(attachment.fileType, attachment.filename)}
           <div className="flex-1 min-w-0">

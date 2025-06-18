@@ -19,7 +19,7 @@ export function Settings() {
     email: user?.email || '',
   });
   const [customInstructions, setCustomInstructions] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+
   const [isSavingInstructions, setIsSavingInstructions] = useState(false);
 
   // Load custom instructions on component mount

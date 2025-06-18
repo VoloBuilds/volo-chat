@@ -2,7 +2,7 @@ import { getAuth } from 'firebase/auth';
 import { app } from './firebase';
 import { AIModel, Chat, Message, Attachment, BranchResponse, ChatMetadata, SharedChatResponse } from '../types/chat';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://volo-chat-api.volobuilds1.workers.dev/';
 
 class APIError extends Error {
   constructor(public status: number, message: string) {
@@ -650,28 +650,7 @@ export interface ChatCopyResponse {
   message?: string;
 }
 
-// Generic function for copying chats (used by both share import and branching)
-async function copyChat(
-  sourceType: 'shared' | 'branch',
-  identifier: string,
-  options?: { messageId?: string }
-): Promise<ChatCopyResponse> {
-  const endpoint = sourceType === 'shared' 
-    ? `/api/v1/shared/${identifier}/import`
-    : `/api/v1/chats/${identifier}/branch`;
-    
-  const body = options?.messageId 
-    ? { messageId: options.messageId }
-    : {};
 
-  const response = await fetchWithAuth(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-
-  return response.json();
-}
 
 // Chat branching functions
 export async function branchChatFromMessage(

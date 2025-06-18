@@ -31,7 +31,7 @@ export function useChat(chatId?: string) {
   } = useChatStore();
 
   // Get current chat state from URL
-  const { chatId: urlChatId, currentChat, currentMessages, isLoadingChat } = useCurrentChat();
+  const { chatId: urlChatId, currentChat, isLoadingChat } = useCurrentChat();
   
   // Use the provided chatId or fall back to URL chatId
   const effectiveChatId = chatId || urlChatId;
@@ -55,7 +55,7 @@ export function useChat(chatId?: string) {
   // Switch to specific chat if we have a chatId but no messages loaded for it
   useEffect(() => {
     if (urlChatId && !messages[urlChatId] && chatsLoaded) {
-      switchToChat(urlChatId).catch((error: Error) => {
+      switchToChat(urlChatId).catch(() => {
         // Handle error silently or implement proper error handling
       });
     }

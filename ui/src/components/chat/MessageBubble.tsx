@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { toast } from 'sonner';
 import { Message } from '../../types/chat';
 import { Button } from '../ui/button';
@@ -20,13 +20,7 @@ function StreamingMarkdown({ content, isStreaming }: { content: string; isStream
   const animationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isMobile = useIsMobile();
   
-  // Check if this is an error message - simplified approach
-  const isErrorMessage = content && (
-    content.toLowerCase().includes('error') ||
-    content.includes('403') ||
-    content.includes('401') ||
-    content.includes('429')
-  );
+
 
   // Check if this content contains generated image data (fallback for when file saving fails)
   const imageMatch = content?.match(/\[IMAGE_DATA:(data:image\/[^;]+;base64,[^\]]+)\](.*)$/s);
@@ -166,9 +160,7 @@ function StreamingMarkdown({ content, isStreaming }: { content: string; isStream
       {content ? (
         <div className={cn(
           "streaming-content-wrapper min-w-0 max-w-full",
-          isContentGrowing && "animate-bottom-reveal",
-          // Special styling for error messages
-          isErrorMessage && "border-l-4 border-red-500 pl-4 bg-red-50 dark:bg-red-950/20 rounded-r-md py-2 -ml-4"
+          isContentGrowing && "animate-bottom-reveal"
         )}>
           <Markdown content={textContent} />
         </div>
@@ -190,7 +182,6 @@ function StreamingMarkdown({ content, isStreaming }: { content: string; isStream
 
 interface MessageBubbleProps {
   message: Message;
-  isLast?: boolean;
   canBranch?: boolean;
   onBranch?: (newChatId: string) => void;
   isFirst?: boolean;
@@ -199,11 +190,11 @@ interface MessageBubbleProps {
   onRetry?: (messageId: string) => void; // Retry callback
 }
 
-export function MessageBubble({ message, isLast, canBranch = true, onBranch, isFirst = false, sharedChatId, canRetry = false, onRetry }: MessageBubbleProps) {
+export function MessageBubble({ message, canBranch = true, onBranch, isFirst = false, sharedChatId, canRetry = false, onRetry }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [branching, setBranching] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const navigate = useNavigate();
+
   const isMobile = useIsMobile();
   
   // Don't allow branching from temporary messages (streaming/optimistic updates)

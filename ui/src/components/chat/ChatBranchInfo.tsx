@@ -48,7 +48,7 @@ export function ChatBranchInfo({ chatId }: ChatBranchInfoProps) {
 
   if (loading || !metadata) return null;
 
-  const { chat, originalChat, branches, isBranched, hasOriginal, branchCount } = metadata;
+  const { originalChat, branches, isBranched, hasOriginal, branchCount } = metadata;
 
   // Don't show anything if this is a regular chat with no branches
   if (!isBranched && branchCount === 0) {

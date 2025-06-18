@@ -35,7 +35,7 @@ export const SidebarItem = memo(function SidebarItem({
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [newTitle, setNewTitle] = useState(chat.title);
   
-  const { shareChat, revokeShareChat } = useChatStore();
+  const { shareChat } = useChatStore();
 
   const handleClick = useCallback(() => {
     onChatClick(chat.id);
@@ -106,15 +106,7 @@ export const SidebarItem = memo(function SidebarItem({
     }
   }, [chat.id, chat.isShared, chat.shareId, shareChat]);
 
-  const handleRevokeShare = useCallback(async () => {
-    try {
-      await revokeShareChat(chat.id);
-      toast.success('Share link revoked successfully!');
-    } catch (error) {
-      console.error('Error revoking share:', error);
-      toast.error('Failed to revoke share. Please try again.');
-    }
-  }, [chat.id, revokeShareChat]);
+
 
   return (
     <>

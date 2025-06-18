@@ -14,6 +14,7 @@ import { chats } from './routes/chats';
 import { fileRoutes } from './routes/files';
 import { userManagement } from './routes/user-management';
 import { imageGeneration } from './routes/image-generation';
+import type { CloudflareEnv } from './services/FileService';
 
 const app = new Hono();
 
@@ -226,7 +227,7 @@ api.get('/shared/:shareId/files/:fileId', async (c) => {
     }
 
     // Get the actual file buffer
-    const fileBuffer = await fileService.getFileBuffer(fileId, c.env);
+    const fileBuffer = await fileService.getFileBuffer(fileId, c.env as CloudflareEnv);
     if (!fileBuffer) {
       return c.json({ error: 'File data not available' }, 404);
     }

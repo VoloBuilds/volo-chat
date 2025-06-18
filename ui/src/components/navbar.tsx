@@ -1,7 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { auth } from "@/lib/firebase";
-import { signOut } from "firebase/auth";
-import { PanelLeftOpen, Settings, LogOut, Sun, Moon, Plus, User } from "lucide-react";
+import { Settings, LogOut, Sun, Moon, Plus, User } from "lucide-react";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "next-themes";

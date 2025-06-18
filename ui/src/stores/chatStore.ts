@@ -251,7 +251,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       
       // Start preloading recent chats in the background
       setTimeout(() => {
-        preloadRecentChats().catch(error => {
+        preloadRecentChats().catch(() => {
           // Background preloading failed - handle silently
         });
       }, 500); // Small delay to let the UI settle
@@ -425,8 +425,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       let updateTimeout: NodeJS.Timeout | null = null;
       let pendingUpdate = false;
       let chunkCount = 0;
-      let realUserMessageId: string | null = null;
-      let realAssistantMessageId: string | null = null;
+
       
       // Create abort controller for this stream
       const abortController = new AbortController();
@@ -505,7 +504,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       
       // Process the stream
       try {
-        for await (const chunk of streamWithEventHandling()) {
+        for await (const _chunk of streamWithEventHandling()) {
           // Use throttled update instead of immediate update
           throttledUpdate(fullContent);
         }
@@ -639,9 +638,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       
       // Check if this is a provider error with specific handling
       const isProviderError = error && typeof error === 'object' && 'isProviderError' in error;
-      const statusCode = isProviderError ? (error as any).statusCode : undefined;
-      const provider = isProviderError ? (error as any).provider : undefined;
-      const retryable = isProviderError ? (error as any).retryable : false;
+
       
       if (isProviderError) {
         // Extract the actual error message - this is the helpful user-facing message
@@ -1285,7 +1282,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       console.error('[CHAT-STORE] Retry failed:', error);
       
       // Clean up streaming state
-      set(state => ({
+      set(() => ({
         streamingMessageId: null
       }));
       

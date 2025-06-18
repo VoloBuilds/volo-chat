@@ -16,6 +16,7 @@ export interface ChatCopyOptions {
     isBranched?: boolean;
     isShared?: boolean;
     branchPointMessageId?: string;
+    branchedAt?: Date;
   };
 }
 

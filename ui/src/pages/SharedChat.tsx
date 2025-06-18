@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
@@ -221,7 +221,6 @@ export default function SharedChat() {
                     <MessageBubble 
                       key={message.id}
                       message={message}
-                      isLast={index === sharedChat.messages.length - 1}
                       isFirst={index === 0}
                       canBranch={false}
                       sharedChatId={shareId}

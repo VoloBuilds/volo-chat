@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/lib/auth-context';
 import { ThemeProvider } from "@/components/theme-provider";
-import { LoginForm } from '@/components/login-form';
+
 import { Navbar } from '@/components/navbar';
 import { AppSidebar } from '@/components/sidebar/appSidebar';
 import { Settings } from '@/pages/Settings';

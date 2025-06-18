@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Eye, EyeOff, Key, Trash2, Check, X, Info, ExternalLink, Bot, Image } from 'lucide-react';
+import { Eye, EyeOff, Trash2, Check, X, Info, ExternalLink, Bot, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -41,7 +41,7 @@ function ApiKeyManagerCard({
   state,
   onUpdateState,
   onSave,
-  onTest,
+
   onDelete,
   validateKey,
 }: ApiKeyManagerCardProps) {

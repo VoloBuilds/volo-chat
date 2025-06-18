@@ -5,34 +5,19 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
 import { Badge } from '../ui/badge';
 import {
-  Tooltip,
-  TooltipContent,
   TooltipProvider,
-  TooltipTrigger,
 } from '../ui/tooltip';
 import { 
   Check, 
   ChevronDown, 
   ChevronUp,
   Bot, 
-  Search, 
   Eye, 
   Globe, 
-  FileText, 
   Brain, 
-  Code, 
-  Calculator,
   Sparkles,
-  Diamond,
-  Zap,
-  Volume2,
-  Video,
-  Wrench,
-  Users,
   Info,
   Image,
-  AlertTriangle,
-  Settings
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { AIModel } from '../../types/chat';
@@ -234,12 +219,7 @@ export function ModelSelector() {
     }
   };
 
-  const formatPrice = (price: number) => {
-    if (price < 0.001) {
-      return `$${(price * 1000000).toFixed(2)}/1M tokens`;
-    }
-    return `$${price.toFixed(3)}/1K tokens`;
-  };
+
 
   // Helper function to check if a model is a GPT image model
   const isGPTImageModel = (model: AIModel): boolean => {

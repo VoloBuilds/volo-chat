@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useChat } from '../../hooks/useChat';
 import { Button } from '../ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -30,23 +30,24 @@ import {
   Wrench,
   Users,
   Info,
-  Image
+  Image,
+  AlertTriangle,
+  Settings
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { AIModel } from '../../types/chat';
+import { UserApiKeyService, type ApiKeyStatus } from '../../services/userApiKeyService';
 
-// Recommended models list - these will be shown by default (matching the screenshot)
-// Using more flexible matching patterns to catch variations in model naming
+// Recommended models list - these will be shown by default
+// Using exact name matching for specific models
 const RECOMMENDED_MODELS = [
-  { pattern: 'gemini.*2\.?5.*flash', name: 'Gemini 2.5 Flash' },
-  { pattern: 'gemini.*2\.?5.*pro', name: 'Gemini 2.5 Pro' },
-  { pattern: 'gpt-image-1', name: 'GPT Image 1' },
-  { pattern: 'dall-e-3', name: 'DALL-E 3' },
-  { pattern: 'gpt.*image|dalle|imagegen', name: 'GPT ImageGen' },
-  { pattern: 'o1.*mini|o4.*mini', name: 'o4-mini' },
-  { pattern: 'claude.*4.*sonnet(?!.*reasoning|.*thinking)', name: 'Claude 4 Sonnet' },
-  { pattern: 'claude.*4.*sonnet.*(reasoning|thinking)', name: 'Claude 4 Sonnet (Reasoning)' },
-  { pattern: 'deepseek.*r1.*(llama|distilled)', name: 'DeepSeek R1 (Llama Distilled)' },
+  'Anthropic: Claude Sonnet 4',
+  'Google: Gemini 2.5 Flash',
+  'Google: Gemini 2.5 Pro',
+  'OpenAI: GPT-4o-mini',
+  'OpenAI: o4 Mini',
+  'GPT Image 1',
+  'DeepSeek: R1 Distill Qwen 7B',
 ];
 
 export function ModelSelector() {
@@ -55,8 +56,24 @@ export function ModelSelector() {
   const [search, setSearch] = useState('');
   const [showAllModels, setShowAllModels] = useState(false);
   const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set());
+  const [openAIApiKeyStatus, setOpenAIApiKeyStatus] = useState<ApiKeyStatus | null>(null);
 
   const selectedModel = availableModels.find(model => model.id === selectedModelId);
+
+  // Load OpenAI API key status
+  useEffect(() => {
+    const loadOpenAIStatus = async () => {
+      try {
+        const status = await UserApiKeyService.getOpenAIApiKeyStatus();
+        setOpenAIApiKeyStatus(status);
+      } catch (error) {
+        console.error('Failed to load OpenAI API key status:', error);
+        setOpenAIApiKeyStatus({ hasKey: false });
+      }
+    };
+
+    loadOpenAIStatus();
+  }, []);
 
   // Helper function to assign release scores to models for sorting
   const getModelReleaseScore = (model: AIModel): number => {
@@ -110,13 +127,10 @@ export function ModelSelector() {
   const { recommendedModels, searchResults, modelsByProvider } = useMemo(() => {
     const recommended: AIModel[] = [];
     
-    // Match models against recommended patterns in order
-    for (const { pattern, name } of RECOMMENDED_MODELS) {
-      const regex = new RegExp(pattern, 'i');
+    // Match models against recommended names in order
+    for (const modelName of RECOMMENDED_MODELS) {
       const matchedModel = availableModels.find(model => 
-        regex.test(model.name) || 
-        regex.test(model.id) || 
-        regex.test(model.description)
+        model.name === modelName
       );
       
       if (matchedModel && !recommended.find(m => m.id === matchedModel.id)) {
@@ -124,8 +138,8 @@ export function ModelSelector() {
       }
     }
     
-    // Limit to 7 models max
-    const finalRecommended = recommended.slice(0, 7);
+    // Keep all found recommended models (no limit)
+    const finalRecommended = recommended;
 
     // Handle search
     let searchFiltered: AIModel[] = [];
@@ -227,6 +241,13 @@ export function ModelSelector() {
     return `$${price.toFixed(3)}/1K tokens`;
   };
 
+  // Helper function to check if a model is a GPT image model
+  const isGPTImageModel = (model: AIModel): boolean => {
+    return model.id.toLowerCase().includes('gpt-image') || 
+           model.name.toLowerCase().includes('gpt image') ||
+           model.name.toLowerCase().includes('gpt-image');
+  };
+
   if (availableModels.length === 0) {
     return (
       <div className="flex items-center gap-2 px-2 py-1 bg-muted rounded text-xs">
@@ -290,6 +311,7 @@ export function ModelSelector() {
                     }}
                     getProviderIcon={getProviderIcon}
                     getCapabilityIcon={getCapabilityIcon}
+                    showApiKeyWarning={isGPTImageModel(model) && !openAIApiKeyStatus?.hasKey}
                   />
                 ))}
               </CommandGroup>
@@ -309,6 +331,7 @@ export function ModelSelector() {
                     }}
                     getProviderIcon={getProviderIcon}
                     getCapabilityIcon={getCapabilityIcon}
+                    showApiKeyWarning={isGPTImageModel(model) && !openAIApiKeyStatus?.hasKey}
                   />
                 ))}
               </CommandGroup>
@@ -386,6 +409,7 @@ export function ModelSelector() {
                             }}
                             getProviderIcon={getProviderIcon}
                             getCapabilityIcon={getCapabilityIcon}
+                            showApiKeyWarning={isGPTImageModel(model) && !openAIApiKeyStatus?.hasKey}
                           />
                         ))}
                       </div>
@@ -408,20 +432,32 @@ interface ModelItemProps {
   onSelect: () => void;
   getProviderIcon: (provider: string, originalProvider?: string) => string;
   getCapabilityIcon: (capability: string) => React.ComponentType<any> | null;
+  showApiKeyWarning?: boolean;
 }
 
-function ModelItem({ model, isSelected, onSelect, getProviderIcon, getCapabilityIcon }: ModelItemProps) {
+function ModelItem({ model, isSelected, onSelect, getProviderIcon, getCapabilityIcon, showApiKeyWarning }: ModelItemProps) {
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   
   // Show primary capabilities as icons
   const primaryCapabilities = model.capabilities.slice(0, 4);
   
+  const handleSelect = () => {
+    // Don't allow selection if API key is required but missing
+    if (showApiKeyWarning) {
+      return;
+    }
+    onSelect();
+  };
+  
   return (
     <CommandItem
       value={`${model.id} ${model.name} ${model.description} ${model.capabilities.join(' ')}`}
-      onSelect={onSelect}
+      onSelect={handleSelect}
       disabled={!model.isAvailable}
-      className="p-3 max-w-[100vw]"
+      className={cn(
+        "p-3 max-w-[100vw]",
+        showApiKeyWarning && "opacity-60"
+      )}
     >
       <div className="flex items-center gap-3 w-full">
         {/* Provider icon */}
@@ -433,6 +469,21 @@ function ModelItem({ model, isSelected, onSelect, getProviderIcon, getCapability
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <span className="font-medium text-sm truncate flex-1 min-w-0" title={model.name}>{model.name}</span>
+            {showApiKeyWarning && (
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                (requires{' '}
+                <button
+                  className="text-muted-foreground underline hover:text-foreground transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.location.href = '/settings';
+                  }}
+                >
+                  OpenAI API key
+                </button>
+                )
+              </span>
+            )}
             {model.description && (
               <Popover open={activeTooltip === 'description'} onOpenChange={(open) => setActiveTooltip(open ? 'description' : null)}>
                 <PopoverTrigger asChild>

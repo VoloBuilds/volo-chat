@@ -85,33 +85,51 @@ export class AIProviderManager {
   async sendMessage(modelId: string, messages: ChatMessage[], userId?: string): Promise<string> {
     this.initializeProviders();
     
-    if (!this.openRouterProvider) {
-      throw new Error('OpenRouter provider not initialized');
-    }
+    // Route to appropriate provider based on model type
+    const provider = this.getProvider(modelId);
+    
+    if (provider === this.openAIProvider) {
+      // OpenAI models (image generation)
+      return await provider.sendMessage(modelId, messages, userId);
+    } else {
+      // OpenRouter models (text generation)
+      if (!this.openRouterProvider) {
+        throw new Error('OpenRouter provider not initialized');
+      }
 
-    // Check if user has their own API key, otherwise require system key
-    if (!userId && !this.openRouterProvider.hasApiKey()) {
-      throw new Error('OpenRouter API key not configured. Please add OPENROUTER_API_KEY to your environment variables.');
-    }
+      // Check if user has their own API key, otherwise require system key
+      if (!userId && !this.openRouterProvider.hasApiKey()) {
+        throw new Error('OpenRouter API key not configured. Please add OPENROUTER_API_KEY to your environment variables.');
+      }
 
-    const openRouterModelId = ModelMappings.getOpenRouterModelId(modelId);
-    return await this.openRouterProvider.sendMessage(openRouterModelId, messages, userId);
+      const openRouterModelId = ModelMappings.getOpenRouterModelId(modelId);
+      return await this.openRouterProvider.sendMessage(openRouterModelId, messages, userId);
+    }
   }
 
-  async *streamMessage(modelId: string, messages: ChatMessage[], userId?: string): AsyncIterableIterator<string> {
+  async *streamMessage(modelId: string, messages: ChatMessage[], userId?: string, fileService?: any, env?: any): AsyncIterableIterator<string> {
     this.initializeProviders();
     
-    if (!this.openRouterProvider) {
-      throw new Error('OpenRouter provider not initialized');
-    }
+    // Route to appropriate provider based on model type
+    const provider = this.getProvider(modelId);
+    
+    if (provider === this.openAIProvider) {
+      // OpenAI models (image generation with streaming)
+      yield* provider.streamMessage(modelId, messages, userId, fileService, env);
+    } else {
+      // OpenRouter models (text generation)
+      if (!this.openRouterProvider) {
+        throw new Error('OpenRouter provider not initialized');
+      }
 
-    // Check if user has their own API key, otherwise require system key
-    if (!userId && !this.openRouterProvider.hasApiKey()) {
-      throw new Error('OpenRouter API key not configured. Please add OPENROUTER_API_KEY to your environment variables.');
-    }
+      // Check if user has their own API key, otherwise require system key
+      if (!userId && !this.openRouterProvider.hasApiKey()) {
+        throw new Error('OpenRouter API key not configured. Please add OPENROUTER_API_KEY to your environment variables.');
+      }
 
-    const openRouterModelId = ModelMappings.getOpenRouterModelId(modelId);
-    yield* this.openRouterProvider.streamMessage(openRouterModelId, messages, userId);
+      const openRouterModelId = ModelMappings.getOpenRouterModelId(modelId);
+      yield* this.openRouterProvider.streamMessage(openRouterModelId, messages, userId);
+    }
   }
 
   async generateImage(modelId: string, prompt: string, options: ImageGenerationOptions = {}, userId?: string): Promise<ImageResult> {

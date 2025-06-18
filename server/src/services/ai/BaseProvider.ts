@@ -6,7 +6,7 @@ export abstract class BaseAIProvider {
   abstract models: AIModel[];
   
   abstract sendMessage(model: string, messages: ChatMessage[], userId?: string): Promise<string>;
-  abstract streamMessage(model: string, messages: ChatMessage[], userId?: string): AsyncIterableIterator<string>;
+  abstract streamMessage(model: string, messages: ChatMessage[], userId?: string, fileService?: any, env?: any): AsyncIterableIterator<string>;
   abstract validateApiKey(apiKey: string): Promise<boolean>;
   
   protected getApiKey(): string | null {

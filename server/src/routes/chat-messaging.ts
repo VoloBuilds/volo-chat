@@ -668,9 +668,10 @@ chatMessaging.post('/:id/stream-http', rateLimitMiddleware(30, 60000), async (c)
           );
 
           let assistantContent = '';
+          let generatedAttachments: any[] = [];
           
-          // Stream AI response (pass user ID for BYOK support)
-          const aiStream = await aiManager.streamMessage(modelId, aiMessages, user.id);
+          // Stream AI response (pass user ID for BYOK support and file service for image generation)
+          const aiStream = await aiManager.streamMessage(modelId, aiMessages, user.id, fileService, c.env as CloudflareEnv);
           
           for await (const chunk of aiStream) {
             // Check for cancellation before processing each chunk
@@ -679,7 +680,35 @@ chatMessaging.post('/:id/stream-http', rateLimitMiddleware(30, 60000), async (c)
               break;
             }
             
-            assistantContent += chunk;
+            // Check for attachment generation (image generation result)
+            if (chunk.includes('[ATTACHMENT:') && chunk.includes(']')) {
+              const attachmentMatch = chunk.match(/\[ATTACHMENT:([^\]]+)\]/);
+              if (attachmentMatch) {
+                const fileId = attachmentMatch[1];
+                console.log(`[HTTP-STREAM] Generated attachment detected: ${fileId}`);
+                
+                // Get file record to add to attachments
+                const fileRecord = await fileService.getFile(fileId);
+                if (fileRecord) {
+                  generatedAttachments.push({
+                    id: fileRecord.id,
+                    filename: fileRecord.filename,
+                    fileType: fileRecord.fileType,
+                    fileSize: fileRecord.fileSize,
+                    status: fileRecord.status,
+                    type: 'file'
+                  });
+                  console.log(`[HTTP-STREAM] Added generated image attachment: ${fileRecord.filename}`);
+                }
+                
+                // Remove the attachment marker from the content and keep the completion message
+                const cleanedChunk = chunk.replace(/\[ATTACHMENT:[^\]]+\]/, '').trim();
+                assistantContent = cleanedChunk; // Since it's a REPLACE: message, replace entirely
+              }
+            } else {
+              assistantContent += chunk;
+            }
+            
             partialContent = assistantContent; // Track partial content for cancellation
             
             // Send chunk to client
@@ -698,6 +727,7 @@ chatMessaging.post('/:id/stream-http', rateLimitMiddleware(30, 60000), async (c)
             role: 'assistant',
             content: finalContent,
             modelId,
+            attachments: generatedAttachments.length > 0 ? generatedAttachments : undefined,
           };
 
           const [savedAssistantMessage] = await db

@@ -46,8 +46,17 @@ export class TitleGenerator {
       };
     }
 
-    // Check if the model is available
+    // Check if the model is available and appropriate for title generation
     try {
+      // Don't use image generation models for title generation
+      if (this.aiManager.isImageGenerationModel(modelId)) {
+        console.warn(`Title generation - model ${modelId} is an image generation model, using default text model instead`);
+        return this.generateTitle({
+          ...options,
+          modelId: this.DEFAULT_MODEL
+        });
+      }
+
       const availableModels = await this.aiManager.getAllModels();
       const requestedModel = availableModels.find(m => m.id === modelId);
       

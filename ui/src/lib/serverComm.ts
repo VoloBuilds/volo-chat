@@ -335,6 +335,8 @@ export function streamChatResponse(data: {
                               // });
                             }
                             break;
+
+
                             
                           case 'stream_end':
                             // AI response complete
@@ -761,6 +763,22 @@ export function getChatCopyType(chat: Chat): 'shared' | 'branched' | 'original' 
   return chat.isBranched ? 'branched' : 'shared';
 }
 
+export async function upgradeUserAccount(userData: {
+  email: string;
+  displayName?: string;
+  photoURL?: string;
+}): Promise<{ user: any; message: string }> {
+  const response = await fetchWithAuth('/api/v1/user/upgrade-account', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(userData),
+  });
+  const result = await response.json();
+  return result;
+}
+
 // Export the main API object
 export const api = {
   // Models
@@ -805,6 +823,7 @@ export const api = {
   getUserPinnedChats,
   pinChat,
   unpinChat,
+  upgradeUserAccount,
   
   // Common patterns (will be extended by features)
   generateChatTitle,

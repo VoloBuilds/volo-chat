@@ -3,7 +3,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "./ui/input"
 import { Button } from "./ui/button"
 import { auth, googleProvider } from "@/lib/firebase"
-import { signInWithEmailAndPassword, signInWithPopup, createUserWithEmailAndPassword } from "firebase/auth"
+import { signInWithEmailAndPassword, signInWithPopup, createUserWithEmailAndPassword, signOut } from "firebase/auth"
+import { useAuth } from "@/lib/auth-context"
+import { useNavigate } from "react-router-dom"
 
 const GoogleIcon = () => (
   <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
@@ -15,6 +17,8 @@ const GoogleIcon = () => (
 )
 
 export function LoginForm() {
+  const { isAnonymous, upgradeAnonymousUser, upgradeAnonymousUserWithGoogle } = useAuth()
+  const navigate = useNavigate()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
@@ -23,17 +27,47 @@ export function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    
     try {
-      if (isSignInMode) {
-        // Sign in mode - try to sign in directly
-        await signInWithEmailAndPassword(auth, email, password)
+      if (isAnonymous) {
+        if (isSignInMode) {
+          // Anonymous user wants to sign in to existing account
+          // Sign out the anonymous user first, then sign in normally
+          await signOut(auth)
+          await signInWithEmailAndPassword(auth, email, password)
+          console.log('Anonymous user signed out and signed in to existing account')
+          // Small delay to ensure auth state has updated
+          setTimeout(() => navigate('/chat'), 100)
+        } else {
+          // Upgrade anonymous user to permanent account
+          await upgradeAnonymousUser(email, password)
+          console.log('Anonymous user upgraded to permanent account')
+          navigate('/chat')
+        }
       } else {
-        // Register mode - try to register first
-        await createUserWithEmailAndPassword(auth, email, password)
-        console.log('User registered and signed in')
+        // Normal flow for non-anonymous users
+        if (isSignInMode) {
+          // Sign in mode - try to sign in directly
+          await signInWithEmailAndPassword(auth, email, password)
+          navigate('/chat')
+        } else {
+          // Register mode - try to register first
+          await createUserWithEmailAndPassword(auth, email, password)
+          console.log('User registered and signed in')
+          navigate('/chat')
+        }
       }
     } catch (err: any) {
-      if (isSignInMode) {
+      if (isAnonymous && !isSignInMode) {
+        // Handle upgrade errors
+        if (err.code === 'auth/email-already-in-use') {
+          setError("An account with this email already exists. Please sign in instead.")
+        } else if (err.code === 'auth/credential-already-in-use') {
+          setError("This account is already linked. Please sign in instead.")
+        } else {
+          setError(`Failed to create account: ${err.message}`)
+        }
+      } else if (isSignInMode) {
         setError("Failed to sign in. Please check your credentials.")
         console.error('Sign in error:', err)
       } else {
@@ -42,6 +76,7 @@ export function LoginForm() {
           try {
             await signInWithEmailAndPassword(auth, email, password)
             console.log('User already exists, signed in instead')
+            setTimeout(() => navigate('/chat'), 100)
           } catch (signInErr: any) {
             setError("Account exists but password is incorrect.")
             console.error('Sign in error after registration attempt:', signInErr)
@@ -56,9 +91,22 @@ export function LoginForm() {
 
   const handleGoogleSignIn = async () => {
     try {
-      await signInWithPopup(auth, googleProvider)
-    } catch (err) {
-      setError("Failed to sign in with Google.")
+      if (isAnonymous) {
+        // Upgrade anonymous user with Google
+        await upgradeAnonymousUserWithGoogle()
+        console.log('Anonymous user upgraded with Google account')
+        navigate('/chat')
+      } else {
+        // Normal Google sign in
+        await signInWithPopup(auth, googleProvider)
+        navigate('/chat')
+      }
+    } catch (err: any) {
+      if (err.code === 'auth/credential-already-in-use') {
+        setError("This Google account is already in use. Please try a different account.")
+      } else {
+        setError("Failed to sign in with Google.")
+      }
       console.error(err)
     }
   }
@@ -68,15 +116,54 @@ export function LoginForm() {
     setError("") // Clear any existing errors when switching modes
   }
 
+  // Determine the UI mode based on anonymous status
+  const getCardTitle = () => {
+    if (isAnonymous && !isSignInMode) {
+      return "Create Account"
+    }
+    return isSignInMode ? "Sign In" : "Register"
+  }
+
+  const getCardDescription = () => {
+    if (isAnonymous && !isSignInMode) {
+      return "Create a permanent account."
+    }
+    return isSignInMode 
+      ? "Enter your credentials to access your account." 
+      : "Create a new account to get started."
+  }
+
+  const getSubmitButtonText = () => {
+    if (isAnonymous && !isSignInMode) {
+      return "Create Account"
+    }
+    return isSignInMode ? "Sign In" : "Register"
+  }
+
+  const getGoogleButtonText = () => {
+    return "Sign in with Google"
+  }
+
+  const getToggleText = () => {
+    if (isAnonymous) {
+      return isSignInMode ? "Want to create a new account instead? " : "Already have an account? "
+    }
+    return isSignInMode ? "Don't have an account? " : "Already have an account? "
+  }
+
+  const getToggleLinkText = () => {
+    if (isAnonymous) {
+      return isSignInMode ? "Create Account" : "Sign In"
+    }
+    return isSignInMode ? "Register" : "Sign In"
+  }
+
   return (
     <Card className="w-[350px]">
       <CardHeader>
-        <CardTitle>{isSignInMode ? "Sign In" : "Register"}</CardTitle>
+        <CardTitle>{getCardTitle()}</CardTitle>
         <CardDescription>
-          {isSignInMode 
-            ? "Enter your credentials to access your account." 
-            : "Create a new account to get started."
-          }
+          {getCardDescription()}
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
@@ -109,7 +196,7 @@ export function LoginForm() {
         </CardContent>
         <CardFooter className="flex flex-col gap-2">
           <Button type="submit" className="w-full">
-            {isSignInMode ? "Sign In" : "Register"}
+            {getSubmitButtonText()}
           </Button>
           <div className="relative w-full">
             <div className="absolute inset-0 flex items-center">
@@ -126,16 +213,16 @@ export function LoginForm() {
             onClick={handleGoogleSignIn}
           >
             <GoogleIcon />
-            Sign in with Google
+            {getGoogleButtonText()}
           </Button>
           <div className="text-center text-sm text-muted-foreground mt-4">
-            {isSignInMode ? "Don't have an account? " : "Already have an account? "}
+            {getToggleText()}
             <button
               type="button"
               onClick={toggleMode}
               className="text-primary hover:underline"
             >
-              {isSignInMode ? "Register" : "Sign In"}
+              {getToggleLinkText()}
             </button>
           </div>
         </CardFooter>

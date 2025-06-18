@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
-import { PanelLeftOpen, Settings, LogOut, Sun, Moon, Plus } from "lucide-react";
+import { PanelLeftOpen, Settings, LogOut, Sun, Moon, Plus, User } from "lucide-react";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "next-themes";
@@ -21,9 +21,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-
 export function Navbar() {
-  const { user } = useAuth();
+  const { user, isAnonymous, signOutExplicitly } = useAuth();
   const { theme, setTheme } = useTheme();
   const { state, isMobile, openMobile } = useSidebar();
   const navigate = useNavigate();
@@ -38,6 +37,10 @@ export function Navbar() {
     navigate('/chat');
   };
 
+  const handleLoginClick = () => {
+    navigate('/login');
+  };
+
   const getUserInitials = (user: any) => {
     if (user?.displayName) {
       return user.displayName
@@ -50,11 +53,20 @@ export function Navbar() {
     if (user?.email) {
       return user.email[0].toUpperCase();
     }
-    return 'U';
+    return 'A'; // 'A' for Anonymous
   };
 
   const toggleTheme = () => {
     setTheme(theme === "dark" ? "light" : "dark");
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOutExplicitly();
+      navigate('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   return (
@@ -104,9 +116,30 @@ export function Navbar() {
       {/* Spacer when sidebar is expanded */}
       {!showExpandButton && <div></div>}
 
-      {/* Right side - User avatar dropdown */}
+      {/* Right side - User controls */}
       {user && (
-        <div className="pointer-events-auto">
+        <div className="pointer-events-auto flex items-center gap-2">
+          {/* Login button for anonymous users */}
+          {isAnonymous && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={handleLoginClick}
+                  variant="outline"
+                  size="sm"
+                  className="bg-background/80 backdrop-blur-sm border shadow-lg hover:bg-background/90 transition-colors"
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  Sign In
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Create a permanent account</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* User avatar dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -114,7 +147,7 @@ export function Navbar() {
                 className="relative size-10 rounded-full bg-background/80 backdrop-blur-sm border shadow-lg hover:bg-background/90 transition-colors p-0"
               >
                 <Avatar className="size-8">
-                  <AvatarImage src={user?.photoURL || ""} alt={user?.displayName || user?.email || ""} />
+                  <AvatarImage src={user?.photoURL || ""} alt={user?.displayName || user?.email || "Anonymous User"} />
                   <AvatarFallback className="text-sm font-medium">
                     {getUserInitials(user)}
                   </AvatarFallback>
@@ -124,13 +157,25 @@ export function Navbar() {
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <div className="flex flex-col space-y-1 p-2">
                 <p className="text-sm font-medium leading-none">
-                  {user.displayName || "User"}
+                  {isAnonymous ? "Anonymous User" : (user.displayName || "User")}
                 </p>
                 <p className="text-xs leading-none text-muted-foreground">
-                  {user.email}
+                  {isAnonymous ? "Temporary account" : user.email}
                 </p>
               </div>
               <DropdownMenuSeparator />
+              
+              {/* Create Account option for anonymous users */}
+              {isAnonymous && (
+                <>
+                  <DropdownMenuItem onClick={handleLoginClick} className="cursor-pointer">
+                    <User className="mr-2 h-4 w-4" />
+                    Create Account
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              
               <DropdownMenuItem asChild>
                 <Link to="/settings" className="cursor-pointer">
                   <Settings className="mr-2 h-4 w-4" />
@@ -147,11 +192,11 @@ export function Navbar() {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
-                onClick={() => signOut(auth)} 
+                onClick={handleSignOut} 
                 className="cursor-pointer text-red-600 focus:text-red-600"
               >
                 <LogOut className="mr-2 h-4 w-4" />
-                Sign out
+                {isAnonymous ? "Start Over" : "Sign out"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

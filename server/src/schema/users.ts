@@ -1,13 +1,14 @@
-import { pgSchema, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { pgSchema, pgTable, text, timestamp, boolean } from 'drizzle-orm/pg-core';
 
 // Create private schema for application tables
 export const appSchema = pgSchema('app');
 
 export const users = appSchema.table('users', {
   id: text('id').primaryKey(),
-  email: text('email').unique().notNull(),
+  email: text('email').unique(),
   display_name: text('display_name'),
   photo_url: text('photo_url'),
+  isAnonymous: boolean('is_anonymous').default(false).notNull(),
   pinned_chats: text('pinned_chats').array().default([]).notNull(),
   // API key fields for BYOK (Bring Your Own Key)
   encryptedOpenrouterKey: text('encrypted_openrouter_key'),

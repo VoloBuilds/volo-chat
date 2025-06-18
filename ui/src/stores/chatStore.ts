@@ -52,10 +52,17 @@ interface ChatState {
   shareChat: (chatId: string) => Promise<{ chat: Chat; shareUrl: string }>;
   revokeShareChat: (chatId: string) => Promise<void>;
   importSharedChat: (shareId: string) => Promise<string>;
+  clearCurrentNavigation: () => void; // New method to clear navigation state
 }
 
-// Default model preference - Gemini Flash
+// Default model preference - prioritize recommended models
 const DEFAULT_MODEL_PREFERENCES = [
+  'Google: Gemini 2.5 Flash',  // First choice - our primary recommended model
+  'Google: Gemini 2.5 Pro',
+  'Anthropic: Claude Sonnet 4',
+  'OpenAI: GPT-4o-mini',
+  'OpenAI: o4 Mini',
+  // Fallbacks to ID-based matching for backward compatibility
   'google/gemini-2.5-flash-lite-preview-06-17',
   'gemini-2.5-flash',
   'gpt-4o-mini',
@@ -118,7 +125,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // Find the best default model based on preferences
         let defaultModelId = '';
         for (const preferredModel of DEFAULT_MODEL_PREFERENCES) {
-          const foundModel = models.find(m => m.id.includes(preferredModel) && m.isAvailable);
+          const foundModel = models.find(m => 
+            (m.id.includes(preferredModel) || m.name === preferredModel) && m.isAvailable
+          );
           if (foundModel) {
             defaultModelId = foundModel.id;
             break;
@@ -139,7 +148,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
           
           // Find a fallback only if user's choice is not available
           for (const preferredModel of DEFAULT_MODEL_PREFERENCES) {
-            const foundModel = models.find(m => m.id.includes(preferredModel) && m.isAvailable);
+            const foundModel = models.find(m => 
+              (m.id.includes(preferredModel) || m.name === preferredModel) && m.isAvailable
+            );
             if (foundModel) {
               finalSelectedModelId = foundModel.id;
               break;
@@ -176,7 +187,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         // If models are loaded, find a default
         if (availableModels.length > 0) {
           for (const preferredModel of DEFAULT_MODEL_PREFERENCES) {
-            const foundModel = availableModels.find(m => m.id.includes(preferredModel) && m.isAvailable);
+            const foundModel = availableModels.find(m => 
+              (m.id.includes(preferredModel) || m.name === preferredModel) && m.isAvailable
+            );
             if (foundModel) {
               modelIdToUse = foundModel.id;
               // Update the selected model for future use
@@ -403,80 +416,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const isImageModel = selectedModel?.capabilities?.includes('image-generation') || false;
 
       if (isImageModel) {
-        console.log(`[CHAT-STORE] Image generation model detected: ${selectedModelId}, using non-streaming endpoint`);
-        
-        // For image generation, use non-streaming endpoint
-        try {
-          const response = await api.sendChatMessage({
-            chatId,
-            content,
-            modelId: selectedModelId,
-            attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
-          });
-
-          // Replace temporary messages with real server response
-          set(state => ({
-            messages: {
-              ...state.messages,
-              [chatId]: state.messages[chatId].map(msg => {
-                if (msg.id === tempUserMessageId) {
-                  return {
-                    ...response.userMessage,
-                    attachments: msg.attachments, // Keep uploaded attachments from optimistic update
-                    createdAt: typeof response.userMessage.createdAt === 'string' ? 
-                      new Date(response.userMessage.createdAt) : response.userMessage.createdAt,
-                  };
-                } else if (msg.id === tempAssistantMessageId) {
-                  return {
-                    ...response.assistantMessage,
-                    createdAt: typeof response.assistantMessage.createdAt === 'string' ? 
-                      new Date(response.assistantMessage.createdAt) : response.assistantMessage.createdAt,
-                    isStreaming: false,
-                    isOptimistic: false,
-                  };
-                }
-                return msg;
-              })
-            },
-            streamingMessageId: null,
-            streamAbortController: null
-          }));
-
-          // Generate title if this is the first exchange
-          const { generateChatTitle, chats } = get();
-          const chat = chats.find(c => c.id === chatId);
-          const currentMessages = get().messages[chatId] || [];
-          
-          if (chat && currentMessages.length === 2 && chat.title === 'New Chat') {
-            try {
-              await generateChatTitle(chatId, content);
-            } catch (error) {
-              // Title generation failed, but that's okay
-            }
-          }
-
-          return; // Exit early for image generation
-        } catch (error) {
-          // Handle image generation error
-          set(state => ({
-            messages: {
-              ...state.messages,
-              [chatId]: state.messages[chatId].map(msg =>
-                msg.id === tempAssistantMessageId
-                  ? { 
-                      ...msg, 
-                      content: `I'm sorry, I couldn't generate an image. ${error instanceof Error ? error.message : 'Please try again.'}`,
-                      isStreaming: false,
-                      isOptimistic: false 
-                    }
-                  : msg
-              )
-            },
-            streamingMessageId: null,
-            streamAbortController: null
-          }));
-          return;
-        }
+        console.log(`[CHAT-STORE] Image generation model detected: ${selectedModelId}, using streaming with partial images`);
+        // Continue to streaming logic below
       }
 
       // 6. STREAM AI RESPONSE (for text models)
@@ -536,11 +477,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       const streamWithEventHandling = async function* () {
         try {
           for await (const chunk of streamResponse) {
-            // Check if this is an SSE event data (should be handled by streamChatResponse)
-            // but we need to access the events here for message ID replacement
-            fullContent += chunk;
+            console.log(`[CHAT-STORE] Raw chunk received:`, { chunk, hasReplace: chunk.startsWith('REPLACE:') });
+            
+            // Handle REPLACE: prefix for image generation progress updates
+            if (chunk.startsWith('REPLACE:')) {
+              const cleanChunk = chunk.substring(8); // Remove "REPLACE:" prefix
+              console.log(`[CHAT-STORE] Processing REPLACE chunk:`, { original: chunk, clean: cleanChunk });
+              fullContent = cleanChunk; // Replace content entirely
+              yield cleanChunk; // Yield without the REPLACE: prefix
+            } else {
+              fullContent += chunk; // Normal accumulative behavior
+              yield chunk;
+            }
             chunkCount++;
-            yield chunk;
           }
         } catch (error) {
           // Check if this is an abort error (cancellation)
@@ -1235,7 +1184,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // Process the stream
       try {
         for await (const chunk of streamResponse) {
-          fullContent += chunk;
+          console.log(`[CHAT-STORE-RETRY] Raw chunk received:`, { chunk, hasReplace: chunk.startsWith('REPLACE:') });
+          
+          // Handle REPLACE: prefix for image generation progress updates
+          if (chunk.startsWith('REPLACE:')) {
+            const cleanChunk = chunk.substring(8); // Remove "REPLACE:" prefix
+            console.log(`[CHAT-STORE-RETRY] Processing REPLACE chunk:`, { original: chunk, clean: cleanChunk });
+            fullContent = cleanChunk; // Replace content entirely
+          } else {
+            fullContent += chunk; // Normal accumulative behavior
+          }
           chunkCount++;
           // Use throttled update instead of immediate update
           throttledUpdate(fullContent);
@@ -1333,5 +1291,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
       
       throw error;
     }
+  },
+
+  clearCurrentNavigation: () => {
+    set({
+      availableModels: [],
+      selectedModelId: '',
+      chats: [],
+      chatsLoaded: false,
+      pinnedChats: [],
+      pinnedChatsLoaded: false,
+      messages: {},
+      streamingMessageId: null,
+      streamAbortController: null,
+      isSidebarOpen: true,
+      isLoading: false,
+      modelsLoaded: false,
+      messageCache: {},
+      loadingChatId: null,
+    });
   },
 })); 

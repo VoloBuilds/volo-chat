@@ -5,8 +5,12 @@ import { users, chats as chatsTable } from '../schema';
 import { rateLimitMiddleware } from '../middleware/rateLimiting';
 import { UserApiKeyService } from '../services/UserApiKeyService';
 import { validateApiKeyFormat } from '../utils/encryption';
+import { authMiddleware } from '../middleware/auth';
 
 const userManagement = new Hono();
+
+// All routes require authentication
+userManagement.use('*', authMiddleware);
 
 // POST /api/v1/user/pin-chat/:chatId - Pin a chat
 userManagement.post('/pin-chat/:chatId', rateLimitMiddleware(30, 60000), async (c) => {
@@ -466,6 +470,58 @@ userManagement.post('/custom-instructions', rateLimitMiddleware(10, 60000), asyn
     return c.json({
       error: 'Failed to save custom instructions',
       message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+});
+
+// Upgrade anonymous user to permanent account
+userManagement.post('/upgrade-account', async (c) => {
+  try {
+    const user = c.get('user');
+    const db = await getDatabase();
+    
+    // Check if user is anonymous
+    if (!user.isAnonymous) {
+      return c.json({ 
+        message: 'User is already a permanent account',
+        user: user 
+      });
+    }
+    
+    // Parse the request body to get the new user info from Firebase
+    const body = await c.req.json();
+    const { email, displayName, photoURL } = body;
+    
+    if (!email) {
+      return c.json({ error: 'Email is required for account upgrade' }, 400);
+    }
+    
+    // Update the user to make them permanent
+    const [updatedUser] = await db.update(users)
+      .set({
+        email: email,
+        display_name: displayName || user.display_name,
+        photo_url: photoURL || user.photo_url,
+        isAnonymous: false,
+        updated_at: new Date(),
+      })
+      .where(eq(users.id, user.id))
+      .returning();
+    
+    if (!updatedUser) {
+      throw new Error('Failed to upgrade user account');
+    }
+    
+    return c.json({ 
+      message: 'Account upgraded successfully',
+      user: updatedUser 
+    });
+    
+  } catch (error) {
+    console.error('Error upgrading account:', error);
+    return c.json({ 
+      error: 'Failed to upgrade account',
+      message: error instanceof Error ? error.message : 'Unknown error'
     }, 500);
   }
 });

@@ -342,7 +342,7 @@ export class OpenRouterProvider extends BaseAIProvider {
     }
   }
 
-  async *streamMessage(model: string, messages: ChatMessage[], userId?: string): AsyncIterableIterator<string> {
+  async *streamMessage(model: string, messages: ChatMessage[], userId?: string, fileService?: any, env?: any): AsyncIterableIterator<string> {
     try {
       console.log(`[OPENROUTER] Starting streaming for model: ${model}${userId ? ` for user: ${userId}` : ''}`);
       

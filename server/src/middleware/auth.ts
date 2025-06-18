@@ -24,13 +24,19 @@ export const authMiddleware: MiddlewareHandler = async (c, next) => {
 
     const db = await getDatabase();
 
+    // Handle anonymous users (email might be null)
+    const userEmail = firebaseUser.email || null;
+    const isAnonymous = !firebaseUser.email;
+
     // Upsert: insert if not exists, do nothing if exists
+    // For anonymous users, email will be null
     await db.insert(users)
       .values({
         id: firebaseUser.id,
-        email: firebaseUser.email!,
+        email: userEmail,
         display_name: null,
         photo_url: null,
+        isAnonymous: isAnonymous,
       })
       .onConflictDoNothing();
 

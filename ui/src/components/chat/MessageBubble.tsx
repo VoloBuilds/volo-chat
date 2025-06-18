@@ -27,6 +27,18 @@ function StreamingMarkdown({ content, isStreaming }: { content: string; isStream
     content.includes('401') ||
     content.includes('429')
   );
+
+  // Check if this content contains generated image data (fallback for when file saving fails)
+  const imageMatch = content?.match(/\[IMAGE_DATA:(data:image\/[^;]+;base64,[^\]]+)\](.*)$/s);
+  const hasGeneratedImage = !!imageMatch;
+  const imageDataUrl = imageMatch?.[1];
+  const textContent = imageMatch?.[2] || content;
+
+  // Check if this is an image generation progress message
+  const isImageGenProgress = content?.includes('🎨') && (
+    content.includes('Starting image generation') || 
+    content.includes('Generating image...')
+  );
   
   useEffect(() => {
     const currentLength = content?.length || 0;
@@ -71,6 +83,69 @@ function StreamingMarkdown({ content, isStreaming }: { content: string; isStream
     };
   }, [content, isStreaming, prevLength]);
 
+  // If this is image generation progress, show loading state
+  if (isImageGenProgress && isStreaming) {
+    return (
+      <div className={cn(
+        "w-full max-w-full",
+        "transition-all duration-700 ease-out",
+        "streaming-container"
+      )}>
+        <div className="flex items-center space-x-3 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+          {/* Spinning loader */}
+          <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent"></div>
+          
+          {/* Progress text */}
+          <div className="flex-1">
+            <div className="text-blue-700 dark:text-blue-300 font-medium">
+              {content?.replace('🎨 ', '') || 'Generating image...'}
+            </div>
+            <div className="text-blue-600 dark:text-blue-400 text-sm mt-1">
+              Using OpenAI gpt-image-1 • This may take a few moments
+            </div>
+          </div>
+          
+          {/* Art icon */}
+          <div className="text-blue-500 text-xl">🎨</div>
+        </div>
+      </div>
+    );
+  }
+
+  // If this is a generated image (fallback when file saving fails), render it specially
+  if (hasGeneratedImage && imageDataUrl) {
+    return (
+      <div className={cn(
+        "w-full max-w-full",
+        "transition-all duration-700 ease-out",
+        isStreaming && "streaming-container",
+        isContentGrowing && "content-growing"
+      )}>
+        <div className={cn(
+          "streaming-content-wrapper min-w-0 max-w-full space-y-3",
+          isContentGrowing && "animate-bottom-reveal"
+        )}>
+          {/* Generated Image (fallback display) */}
+          <div className="generated-image">
+            <img 
+              src={imageDataUrl} 
+              alt="Generated image" 
+              className="max-w-full h-auto rounded-lg shadow-lg"
+              style={{ maxHeight: '500px', objectFit: 'contain' }}
+            />
+          </div>
+          
+          {/* Message text */}
+          {textContent && (
+            <div className="prose prose-neutral dark:prose-invert max-w-none">
+              <Markdown content={textContent} />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn(
       "prose prose-neutral dark:prose-invert max-w-none min-w-0",
@@ -95,7 +170,7 @@ function StreamingMarkdown({ content, isStreaming }: { content: string; isStream
           // Special styling for error messages
           isErrorMessage && "border-l-4 border-red-500 pl-4 bg-red-50 dark:bg-red-950/20 rounded-r-md py-2 -ml-4"
         )}>
-          <Markdown content={content} />
+          <Markdown content={textContent} />
         </div>
       ) : isStreaming ? (
         // Show floating dots for streaming messages without content
@@ -136,6 +211,12 @@ export function MessageBubble({ message, isLast, canBranch = true, onBranch, isF
   
   // Don't allow retry from temporary messages or if currently streaming or if in shared context
   const canActuallyRetry = canRetry && !message.id.startsWith('temp-') && !message.isStreaming && !sharedChatId;
+
+  // Check if this is an image generation progress message
+  const isImageGenProgress = message.content?.includes('🎨') && (
+    message.content.includes('Starting image generation') || 
+    message.content.includes('Generating image...')
+  );
 
   const handleCopy = async () => {
     try {
@@ -308,8 +389,8 @@ export function MessageBubble({ message, isLast, canBranch = true, onBranch, isF
           {renderNonImageAttachments()}
         </div>
 
-        {/* Action buttons - bottom left */}
-        {!message.isStreaming && message.content && (
+        {/* Action buttons - bottom left (hidden for image generation progress) */}
+        {!message.isStreaming && message.content && !isImageGenProgress && (
           <div className="absolute -bottom-8 left-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <Button
               variant="ghost"

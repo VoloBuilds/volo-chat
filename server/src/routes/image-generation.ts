@@ -18,7 +18,7 @@ imageGeneration.post('/generate', rateLimitMiddleware(10, 60000), async (c) => {
     }
 
     const body = await c.req.json();
-    const { prompt, modelId, size, style, quality } = body;
+    const { prompt, modelId, size, partial_images } = body;
 
     if (!prompt || typeof prompt !== 'string') {
       return c.json({ error: 'Prompt is required and must be a string' }, 400);
@@ -34,23 +34,14 @@ imageGeneration.post('/generate', rateLimitMiddleware(10, 60000), async (c) => {
       return c.json({ error: `Invalid size. Must be one of: ${validSizes.join(', ')}` }, 400);
     }
 
-    // Validate style if provided
-    const validStyles = ['vivid', 'natural'];
-    if (style && !validStyles.includes(style)) {
-      return c.json({ error: `Invalid style. Must be one of: ${validStyles.join(', ')}` }, 400);
-    }
-
-    // Validate quality if provided
-    const validQualities = ['standard', 'hd'];
-    if (quality && !validQualities.includes(quality)) {
-      return c.json({ error: `Invalid quality. Must be one of: ${validQualities.join(', ')}` }, 400);
+    // Validate partial_images if provided
+    if (partial_images && (typeof partial_images !== 'number' || partial_images < 1 || partial_images > 5)) {
+      return c.json({ error: 'partial_images must be a number between 1 and 5' }, 400);
     }
 
     const options: ImageGenerationOptions = {
       size: size || '1024x1024',
-      style: style || 'vivid',
-      quality: quality || 'standard',
-      response_format: 'url',
+      partial_images: partial_images || 2,
     };
 
     const aiManager = new AIProviderManager();

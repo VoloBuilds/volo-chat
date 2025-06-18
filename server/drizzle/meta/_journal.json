@@ -22,6 +22,13 @@
       "when": 1750300000000,
       "tag": "0005_add_custom_instructions",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1750400000000,
+      "tag": "0006_add_anonymous_users",
+      "breakpoints": true
     }
   ]
 }

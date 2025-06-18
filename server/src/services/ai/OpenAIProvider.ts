@@ -13,6 +13,13 @@ export interface ImageResult {
   url?: string;
   b64_json?: string;
   revised_prompt?: string;
+  attachment?: {
+    id: string;
+    filename: string;
+    fileType: string;
+    fileSize: number;
+    status: string;
+  };
 }
 
 export interface StreamImageChunk {
@@ -39,22 +46,6 @@ export class OpenAIProvider extends BaseAIProvider {
         supportedSizes: ['1024x1024', '1792x1024', '1024x1792'],
         maxImages: 1,
         supportedFormats: ['png', 'jpeg', 'webp']
-      }
-    },
-    {
-      id: 'dall-e-3',
-      name: 'DALL-E 3',
-      provider: 'openai',
-      type: 'image',
-      description: 'High-quality image generation (fallback for gpt-image-1)',
-      contextWindow: 0, // Not applicable for image models
-      pricing: { input: 0.04, output: 0.04 }, // Per image
-      capabilities: ['image-generation'],
-      isAvailable: true,
-      imageOptions: {
-        supportedSizes: ['1024x1024', '1792x1024', '1024x1792'],
-        maxImages: 1,
-        supportedFormats: ['png']
       }
     }
   ];
@@ -121,12 +112,12 @@ export class OpenAIProvider extends BaseAIProvider {
     throw new Error('OpenAI provider only handles image generation. Text generation should use OpenRouter.');
   }
 
-  async *streamMessage(model: string, messages: ChatMessage[], userId?: string): AsyncIterableIterator<string> {
+  async *streamMessage(model: string, messages: ChatMessage[], userId?: string, fileService?: any, env?: any): AsyncIterableIterator<string> {
     // For image generation models, use streaming image generation
     if (this.isImageModel(model)) {
       const lastMessage = messages[messages.length - 1];
       if (lastMessage?.role === 'user') {
-        yield* this.streamImageGeneration(lastMessage.content, {}, userId, model);
+        yield* this.streamImageGeneration(lastMessage.content, {}, userId, model, fileService, env);
         return;
       }
       throw new Error('No valid prompt found for image generation');
@@ -135,15 +126,19 @@ export class OpenAIProvider extends BaseAIProvider {
     throw new Error('OpenAI provider only handles image generation. Text generation should use OpenRouter.');
   }
 
-  async *streamImageGeneration(prompt: string, options: ImageGenerationOptions = {}, userId?: string, modelId?: string): AsyncIterableIterator<string> {
+  async *streamImageGeneration(prompt: string, options: ImageGenerationOptions = {}, userId?: string, modelId?: string, fileService?: any, env?: any): AsyncIterableIterator<string> {
     const client = await this.getClientForUser(userId);
+
+    console.log(`[OPENAI-IMAGE] Starting image generation:`, {
+      hasFileService: !!fileService,
+      hasEnv: !!env,
+      hasUserId: !!userId,
+      prompt: prompt.substring(0, 100) + (prompt.length > 100 ? '...' : '')
+    });
 
     try {
       // Start generation process
-      yield `data: ${JSON.stringify({
-        type: 'generating',
-        message: 'Starting image generation...'
-      })}\n\n`;
+      yield '🎨 Starting image generation...';
 
       // Use the responses API with streaming for partial images
       const stream = await client.responses.create({
@@ -158,47 +153,76 @@ export class OpenAIProvider extends BaseAIProvider {
 
       let latestImageBase64 = "";
       let partialCount = 0;
+      const expectedPartials = options.partial_images || 2;
 
       for await (const event of stream) {
         if (event.type === "response.image_generation_call.partial_image") {
-          const idx = event.partial_image_index;
           const imageBase64 = event.partial_image_b64;
           
           partialCount++;
           latestImageBase64 = imageBase64; // Store the latest partial image
           
-          // Yield partial progress updates with the actual partial image
-          yield `data: ${JSON.stringify({
-            type: 'partial_image',
-            partial_index: idx,
-            progress: partialCount,
-            image_data: `data:image/png;base64,${imageBase64}`,
-            message: `Generating image... (${partialCount}/${options.partial_images || 2})`
-          })}\n\n`;
+          // Use REPLACE: prefix to indicate content should be replaced, not appended
+          yield `REPLACE:🎨 Generating image... (${partialCount}/${expectedPartials})`;
         }
       }
 
-      // Final image is the last partial image received
+      console.log(`[OPENAI-IMAGE] Image generation completed, base64 length: ${latestImageBase64?.length || 0}`);
+
+      // Save final image as a file attachment
+      if (latestImageBase64 && fileService && env && userId) {
+        console.log(`[OPENAI-IMAGE] Attempting to save image as file attachment`);
+        try {
+          // Convert base64 to buffer
+          const imageBuffer = Buffer.from(latestImageBase64, 'base64');
+          
+          // Generate filename
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const filename = `generated-image-${timestamp}.png`;
+          
+          console.log(`[OPENAI-IMAGE] Saving file: ${filename}, size: ${imageBuffer.length} bytes`);
+          
+          // Save as pending file
+          const fileRecord = await fileService.uploadFilePending(
+            imageBuffer,
+            filename,
+            userId,
+            'image/png'
+          );
+          
+          console.log(`[OPENAI-IMAGE] File saved with ID: ${fileRecord.id}`);
+          
+          // Commit to R2 immediately
+          await fileService.commitFilesToR2([fileRecord.id], env);
+          
+          console.log(`[OPENAI-IMAGE] File committed to R2 successfully`);
+          
+          // Return completion with attachment info
+          yield `REPLACE:✨ Image generation complete! [ATTACHMENT:${fileRecord.id}]`;
+          
+          return; // Exit successfully
+        } catch (error) {
+          console.error('[OPENAI-IMAGE] Failed to save generated image:', error);
+          // Fall back to returning the base64 data
+          yield `REPLACE:[IMAGE_DATA:data:image/png;base64,${latestImageBase64}]✨ Image generation complete!`;
+          return;
+        }
+      }
+
+      // Fallback if no file service provided or user not specified
+      console.log(`[OPENAI-IMAGE] Using fallback - fileService: ${!!fileService}, env: ${!!env}, userId: ${!!userId}`);
       if (latestImageBase64) {
-        yield `data: ${JSON.stringify({
-          type: 'image_complete',
-          image_data: `data:image/png;base64,${latestImageBase64}`,
-          message: 'Image generation complete!'
-        })}\n\n`;
+        yield `REPLACE:[IMAGE_DATA:data:image/png;base64,${latestImageBase64}]✨ Image generation complete!`;
+      } else {
+        throw new Error('No image generated');
       }
 
     } catch (error) {
       console.error('OpenAI streaming image generation failed:', error);
       if (error instanceof Error) {
-        yield `data: ${JSON.stringify({
-          type: 'error',
-          message: `Image generation failed: ${error.message}`
-        })}\n\n`;
+        yield `REPLACE:❌ Image generation failed: ${error.message}`;
       } else {
-        yield `data: ${JSON.stringify({
-          type: 'error',
-          message: 'Image generation failed with unknown error'
-        })}\n\n`;
+        yield 'REPLACE:❌ Image generation failed with unknown error';
       }
     }
   }

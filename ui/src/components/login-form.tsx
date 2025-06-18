@@ -101,7 +101,19 @@ export function LoginForm() {
       }
     } catch (err: any) {
       // Handle specific authentication errors
-      if (err.code === 'auth/account-exists-with-different-credential') {
+      if (err.code === 'auth/credential-already-in-use') {
+        // This occurs when trying to upgrade anonymous user but the Google credential is already associated with another account
+        // Sign out anonymous user and sign in with the existing Google account
+        try {
+          console.log('Google credential already in use, signing out anonymous user and signing in with existing account')
+          await signOut(auth)
+          await signInWithPopup(auth, googleProvider)
+          navigate('/chat')
+        } catch (signInErr: any) {
+          console.error('Failed to sign in with existing Google account:', signInErr)
+          setError("Failed to sign in with Google. Please try again.")
+        }
+      } else if (err.code === 'auth/account-exists-with-different-credential') {
         // This occurs when an account already exists with a different sign-in method
         setError("An account with this email already exists using a different sign-in method. Please try signing in with your original method.")
       } else if (err.code === 'auth/popup-closed-by-user') {

@@ -1,337 +1,301 @@
-# Your Volo App
+# Volo Chat
 
-Welcome to your new full-stack application! This project was created with `create-volo-app` and comes pre-configured with a modern tech stack and production-ready architecture.
+A powerful AI chat application that brings together multiple AI providers and models in one unified interface. Chat with Claude, GPT-4, Gemini, DeepSeek, and generate images with GPT-Image-1 - all while maintaining full control over your data and API keys.
 
-## 🎯 **Philosophy**
+## 🎯 **What is Volo Chat?**
 
-This application provides a highly opinionated, production-ready foundation for building full-stack applications with a decoupled frontend and backend. It's designed to maximize development velocity while adhering to best practices, including clear separation of concerns and secure handling of sensitive credentials.
+Volo Chat is a full-stack AI chat application that provides:
 
-Many boilerplates offer a rapid 'hello world' experience for local development but often defer critical decisions about authentication, database integration, and production deployment. This template takes a different approach. We believe that the complexities of a true full-stack application - setting up auth, a database, and distinct hosting for UI and API - are largely unavoidable for production use. By addressing these components comprehensively from the start, this template aims to provide a clearer, more predictable path to a robust, deployable application, minimizing 'surprise' hurdles down the line and fostering a deeper understanding of the full stack architecture.
+- **Multi-Provider AI Support**: Chat with models from OpenAI, Anthropic, Google, DeepSeek, and more through OpenRouter
+- **Image Generation**: Create images with OpenAI's GPT Image model
+- **File Attachments**: Upload and analyze documents, images, PDFs, and code files
+- **Chat Sharing**: Share conversations with public links that others can import
+- **Chat Branching**: Create alternative conversation paths from any message
+- **BYOK (Bring Your Own Key)**: Use your own API keys for cost control and privacy
 
-Start with everything running locally on your machine, then progressively connect to production services when you're ready or dive in and connect them all at app creation.
 
-## 🚀 **What You Have**
+## 🚀 **Key Features**
 
+### 🤖 **Multiple AI Providers**
+- **OpenRouter Integration**: Access 100+ models from various providers
+- **Direct OpenAI Integration**: Optimized image generation with DALL-E
+- **Smart Model Selection**: Automatic recommendations for your use case
+- **Real-time Streaming**: Fast, responsive conversations
+
+### 📎 **Advanced File Support**
+- **Image Analysis**: Upload images for AI analysis and discussion
+- **Document Processing**: PDF, Word, text, and code file analysis
+- **Multiple Formats**: Support for JSON, CSV, Markdown, and more
+- **Drag & Drop**: Easy file attachment with progress tracking
+
+### 🔗 **Chat Management**
+- **Share Conversations**: Generate public links to share interesting chats
+- **Import Shared Chats**: Discover and import conversations from others
+- **Branch Conversations**: Create alternative paths from any message point
+- **Organized Sidebar**: Chronological chat grouping with search
+
+### 🔐 **Privacy & Control**
+- **Your API Keys**: Use your own keys for complete control
+- **Local Development**: Full offline development environment
+- **Anonymous Users**: No account required to start
+- **Firebase Auth**: Secure authentication when ready
+
+## 🛠️ **Tech Stack**
 
 **Frontend:**
 - ⚛️ React + TypeScript + Vite
-- 🎨 Tailwind CSS + ShadCN components
-- 🔐 Firebase Authentication (Google Sign-In)
+- 🎨 Tailwind CSS + ShadCN/UI
+- 🔐 Firebase Authentication
+- 🗂️ Zustand State Management
 
 **Backend:**
-- 🔥 Hono API backend (NodeJS)
-- 🗄️ PostgreSQL with Drizzle ORM
-- 🔑 Firebase Admin SDK
+- 🔥 Hono API (Node.js/Cloudflare Workers)
+- 🗄️ PostgreSQL + Drizzle ORM
+- 🪣 Cloudflare R2 File Storage
+- 🔑 Multi-provider AI integration
 
-**Local Development (Default):**
-- ⚡ Runs UI + Server + DB + Auth on your computer
-- 🏠 Embedded PostgreSQL database
-- 🔧 Firebase Auth emulator
-- ✅ Zero sign-ins or accounts needed
+## 📋 **Quick Start**
 
-**Production (when connected):**
-- 🌐 Cloudflare Pages + Workers deployment ready
-- 🗄️ Neon, Supabase, or custom PostgreSQL
-- 🔐 Production Firebase Auth
+### Prerequisites
+- Node.js 18+ and pnpm
+- Git
 
-## 🛠️ **Development**
+### Installation
 
-Start both frontend and backend (with embedded PostgreSQL database and Firebase emulator):
+1. **Clone and Install**
+   ```bash
+   git clone <your-repo-url>
+   cd volo-chat
+   pnpm install
+   ```
+
+2. **Start Development Environment**
+   ```bash
+   pnpm dev
+   ```
+
+   This starts:
+   - **Frontend**: http://localhost:5173
+   - **Backend API**: http://localhost:8787
+   - **PostgreSQL**: Embedded database
+   - **Firebase Auth**: Local emulator
+
+3. **Start Chatting**
+   - Open the frontend URL
+   - Sign in with any email/password (local mode)
+   - Start a conversation with the default models
+
+## 🔧 **Configuration**
+
+### Environment Variables
+
+Create `server/.env` with your API keys:
 
 ```bash
-pnpm run dev
+# Optional: OpenRouter API key for text models
+OPENROUTER_API_KEY=your_openrouter_key
+
+# Optional: OpenAI API key for image generation
+OPENAI_API_KEY=your_openai_key
+
+# Database (automatically configured for local development)
+DATABASE_URL=postgresql://...
+
+# Firebase (automatically configured for local development)
+FIREBASE_PROJECT_ID=your_project_id
 ```
 
-This automatically assigns available ports and displays them on startup:
-- **Frontend**: Usually `http://localhost:5173` (or next available)
-- **Backend API**: Usually `http://localhost:8787` (or next available)
-- **PostgreSQL**: Embedded database on dynamic port (starts from 5433)
+### Adding Your Own API Keys
 
-The system handles port conflicts automatically. For multiple projects, use separate folders.
+1. **In the App**: Go to Settings → API Keys
+2. **Add Keys**: Enter your OpenRouter and/or OpenAI keys
+3. **Start Chatting**: Your keys enable access to all models
 
-> **📋 Port Management**: See [`docs/PORT_HANDLING.md`](docs/PORT_HANDLING.md) for details on running multiple instances and port conflict resolution.
+### Production Deployment
 
-### Individual Commands
+For production deployment to Cloudflare:
 
-```bash
-# Frontend only
-cd ui && pnpm dev
+1. **Database**: Set up Neon, Supabase, or custom PostgreSQL
+2. **Storage**: Configure Cloudflare R2 bucket
+3. **Auth**: Set up production Firebase project
+4. **Deploy**: Use Cloudflare Pages + Workers
 
-# Backend only  
-cd server && pnpm dev
+See deployment docs in `server/README.md` for detailed instructions.
 
-# Build frontend
-cd ui && pnpm build
+## 🤖 **Supported Models**
 
-# Deploy backend (requires production setup)
-cd server && pnpm run deploy
-```
+### Text Generation
+- **Anthropic**: Claude 4, Claude 3.5 Sonnet
+- **OpenAI**: GPT-4o, GPT-4o-mini, o1 series
+- **Google**: Gemini 2.5 Pro, Gemini 2.5 Flash
+- **DeepSeek**: R1 series, V3 models
+- **100+ Others**: Via OpenRouter integration
 
-## 🔗 **Connecting Production Services**
+### Image Generation
+- **OpenAI DALL-E 3**: High-quality image generation
+- **GPT Image 1**: Latest OpenAI image model with streaming
 
-Your app defaults to everything running locally. Connect to production services when you're ready:
+### File Analysis
+- **Images**: JPEG, PNG, GIF, WebP analysis
+- **Documents**: PDF, Word, text file processing
+- **Code**: JSON, CSV, code file analysis
+- **Multimodal**: Combined text and image understanding
 
-### Connect Production Database
-```bash
-# Choose from available providers
-pnpm connect:database
+## 🎛️ **Usage Guide**
 
-# Or connect to specific provider
-pnpm connect:database:neon      # Neon PostgreSQL
-pnpm connect:database:supabase  # Supabase PostgreSQL
-pnpm connect:database:custom    # Custom PostgreSQL
-```
+### Basic Chat
+1. Select a model from the dropdown
+2. Type your message
+3. Attach files if needed
+4. Send and watch the streaming response
 
-### Connect Production Authentication
-```bash
-# Set up production Firebase Auth
-pnpm connect:auth
-```
+### File Attachments
+- **Drag & Drop**: Files onto the chat input
+- **Click to Upload**: Use the attachment button
+- **Multiple Files**: Upload up to 5 files per message
+- **Smart Model Selection**: Auto-switch to multimodal models when needed
 
-### Connect Production Deployment
-```bash
-# Set up Cloudflare Workers + Pages deployment
-pnpm connect:deploy
-```
+### Chat Sharing
+1. Open chat actions menu (3 dots)
+2. Click "Share Chat"
+3. Copy the generated link
+4. Others can view and import the conversation
 
-### Check Connection Status
-```bash
-# See what's connected to production vs local
-pnpm connection:status
-```
+### Chat Branching
+1. Hover over any message
+2. Click the branch icon
+3. Continue the conversation from that point
+4. Original chat remains unchanged
 
-**What happens when you connect services:**
-- Your `.env` files are automatically updated
-- A backup of your current config is created
-- You can always revert to local development by restoring the backup
+### Image Generation
+1. Select an image generation model (DALL-E 3, GPT Image 1)
+2. Describe what you want to create
+3. Watch real-time generation progress
+4. Download or share the result
 
 ## 📁 **Project Structure**
 
 ```
-├── ui/                    # React frontend
+volo-chat/
+├── ui/                     # React frontend
 │   ├── src/
-│   │   ├── components/    # UI components (ShadCN)
-│   │   ├── lib/          # Utilities & Firebase config
-│   │   └── App.tsx       # Main app component
+│   │   ├── components/     # UI components
+│   │   │   ├── chat/      # Chat-specific components
+│   │   │   ├── sidebar/   # Navigation and chat list
+│   │   │   └── settings/  # API key management
+│   │   ├── hooks/         # React hooks
+│   │   ├── stores/        # Zustand state management
+│   │   ├── types/         # TypeScript definitions
+│   │   └── services/      # API communication
 │   └── package.json
-├── server/               # Hono API backend
+├── server/                 # Hono API backend
 │   ├── src/
-│   │   ├── middleware/   # Auth & other middleware
-│   │   ├── schema/       # Database schema (Drizzle)
-│   │   └── index.ts      # API routes
-│   ├── wrangler.toml     # Cloudflare Worker config (when connected)
-│   ├── .env              # Your environmental variables
+│   │   ├── routes/        # API endpoints
+│   │   │   ├── chat-messaging.ts
+│   │   │   ├── chat-sharing.ts
+│   │   │   ├── chat-branching.ts
+│   │   │   └── image-generation.ts
+│   │   ├── services/      # Business logic
+│   │   │   ├── ai/       # AI provider integrations
+│   │   │   └── ChatCopyService.ts
+│   │   ├── schema/        # Database schema
+│   │   └── middleware/    # Auth and rate limiting
 │   └── package.json
-├── data/                 # Local development data
-│   ├── postgres/         # Embedded PostgreSQL data
-│   └── firebase-emulator/ # Firebase emulator data (auto-backed up)
-└── scripts/
-    ├── post-setup.js     # Setup automation
-    ├── run-dev.js        # Development server runner
-    └── periodic-emulator-backup.js # Firebase data backup (runs automatically)
+└── scripts/               # Development utilities
 ```
 
-## 🔧 **Customization**
+## 🔌 **API Integration**
 
-### Adding API Routes
+### Adding New AI Providers
 
-Edit `server/src/index.ts`:
+1. **Create Provider**: Extend `BaseAIProvider` class
+2. **Update Manager**: Add to `AIProviderManager`
+3. **Add Models**: Define model configurations
+4. **Test Integration**: Verify streaming and responses
 
-```typescript
-// Add to the existing api router
-api.get('/your-route', (c) => {
-  return c.json({ message: 'Hello!' });
-});
+### Custom Features
 
-// For protected routes, add to protectedRoutes:
-protectedRoutes.get('/private-route', (c) => {
-  const user = c.get('user'); // Get authenticated user
-  return c.json({ user });
-});
-```
+The modular architecture makes it easy to add:
+- New file type support
+- Additional AI providers
+- Custom chat features
+- Enhanced UI components
 
-### Database Changes
+## 🛡️ **Security & Privacy**
 
-1. Edit schema in `server/src/schema/`
-2. Push changes: `cd server && pnpm db:push`
+- **API Key Security**: Your keys are encrypted and stored securely
+- **Anonymous Mode**: No data collection without account
+- **Local Development**: Everything runs locally by default
+- **CORS Protection**: Proper API security measures
+- **Rate Limiting**: Prevents abuse and overuse
 
-### UI Components
+## 🚨 **Troubleshooting**
 
-- Add components in `ui/src/components/`
-- Use ShadCN/UI: Browse components at [ui.shadcn.com](https://ui.shadcn.com)
-- Install new components: `cd ui && npx shadcn-ui@latest add [component]`
+### Common Issues
 
-### Styling
+**Models not loading:**
+- Add OpenRouter API key in Settings
+- Check network connectivity
+- Verify API key validity
 
-- Modify `ui/tailwind.config.js` for custom themes
-- Global styles in `ui/src/index.css`
-- Use Tailwind utility classes throughout
+**File uploads failing:**
+- Check file size (10MB limit)
+- Verify supported file types
+- Ensure stable internet connection
 
-## 🚀 **Deployment**
+**Chat sharing not working:**
+- Confirm authentication
+- Check if chat has messages
+- Verify network connectivity
 
-> **Note**: Embedded PostgreSQL is for local development only. Production deployments require an external database (configured during setup).
-
-### Backend (Cloudflare Workers)
-
-```bash
-cd server
-pnpm run deploy
-```
-
-Your API will be available at: `https://your-worker-name.your-subdomain.workers.dev`
-
-### Frontend (Cloudflare Pages)
-
-1. **Connect to Git**: Link your repository to [Cloudflare Pages](https://dash.cloudflare.com/pages)
-2. **Build Settings**:
-   - Build command: `pnpm run build`
-   - Build output: `ui/dist`
-3. **Deploy**: Automatic on every git push
-
-### Environment Variables (Production)
-
-Set these in Cloudflare dashboards:
-
-**Worker Environment Variables:**
-- `DATABASE_URL` - Your database connection string
-- `FIREBASE_PROJECT_ID` - Firebase project ID
-- `R2_PUBLIC_URL` - Your R2 bucket public URL (for file hosting)
-
-**R2 Bucket Configuration:**
-- Create an R2 bucket in Cloudflare Dashboard
-- Configure public access for file serving
-- Update `wrangler.toml` with your bucket name
-- Set `R2_PUBLIC_URL` to your bucket's public URL
-
-**Pages Environment Variables (if needed):**
-- `VITE_API_URL` - Your deployed worker URL (optional, defaults work)
-
-### Post-Deployment Setup
-
-1. **Update Firebase authorized domains**:
-   - Go to [Firebase Console](https://console.firebase.google.com) > Authentication > Settings
-   - Add your Pages domain (e.g., `your-app.pages.dev`)
-
-2. **Test your deployment**:
-   ```bash
-   curl https://your-worker-name.your-subdomain.workers.dev/api/v1/hello
-   ```
-
-## 🔐 **Authentication Flow**
-
-Your app includes a complete authentication system that works in both local and production modes:
-
-### Local Mode (Default)
-1. **Sign in**: Use any email/password combination in the UI
-2. **Storage**: User data stored in local Firebase emulator
-3. **API calls**: Authenticated requests work normally
-4. **Development**: No external accounts needed
-
-### Production Mode (After `pnpm connect:auth`)
-1. **Login**: Users sign in with Google (or other configured providers)
-2. **Token**: Frontend gets Firebase ID token
-3. **API calls**: Token sent in `Authorization: Bearer <token>` header
-4. **Verification**: Backend verifies token and creates/finds user in database
-5. **Protection**: Protected routes automatically have user context
-
-### Example API Call
-
-```typescript
-// Frontend (already implemented in lib/serverComm.ts)
-const response = await api.getCurrentUser();
-console.log(response.user);
-```
-
-## 🗄️ **Database**
-
-Your database is set up with Drizzle ORM and works the same whether local or production:
-
-### User Schema (included)
-
-```typescript
-// server/src/schema/users.ts
-export const users = pgTable('users', {
-  id: text('id').primaryKey(),
-  email: text('email').unique().notNull(),
-  display_name: text('display_name'),
-  photo_url: text('photo_url'),
-  created_at: timestamp('created_at').defaultNow(),
-  updated_at: timestamp('updated_at').defaultNow(),
-});
-```
-
-### Adding New Tables
-
-1. Create schema file in `server/src/schema/`
-2. Export from main schema file
-3. Push to database: `cd server && pnpm db:push`
-
-## 📚 **Learning Resources**
-
-- **React**: [react.dev](https://react.dev)
-- **Hono**: [hono.dev](https://hono.dev)
-- **Drizzle ORM**: [orm.drizzle.team](https://orm.drizzle.team)
-- **Tailwind CSS**: [tailwindcss.com](https://tailwindcss.com)
-- **ShadCN/UI**: [ui.shadcn.com](https://ui.shadcn.com)
-- **Cloudflare Workers**: [developers.cloudflare.com/workers](https://developers.cloudflare.com/workers)
-- **Firebase Auth**: [firebase.google.com/docs/auth](https://firebase.google.com/docs/auth)
-
-## 🆘 **Troubleshooting**
+**Image generation failing:**
+- Add OpenAI API key in Settings
+- Check API quota and billing
+- Try different prompts if content policy issues
 
 ### Development Issues
 
-**Backend won't start:**
 ```bash
-cd server
-# Check environment variables
-cat .env
-# Reinstall dependencies
-pnpm install
-```
-
-**Database connection errors:**
-```bash
-cd server
-# Test database connection
-pnpm db:push
-```
-
-**Frontend build errors:**
-```bash
-cd ui
 # Clear cache and reinstall
-rm -rf node_modules .vite dist
+rm -rf node_modules
 pnpm install
+
+# Reset database
+cd server && pnpm db:push
+
+# Check logs
+pnpm dev --verbose
 ```
 
-### Authentication Issues
+## 🤝 **Contributing**
 
-**Local Development:**
-- Firebase emulator should start automatically with `pnpm dev`
-- Try signing in with any email/password combination
-- Check `data/firebase-emulator/` for persisted data
-- **Data Protection**: Emulator data is automatically backed up every 60 seconds and on clean shutdown to prevent data loss during crashes
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
-**Production Mode:**
-1. **Check Firebase config**: `ui/src/lib/firebase-config.json`
-2. **Verify environment variables**: `server/.env`
-3. **Check authorized domains** in Firebase Console
+Areas we'd love help with:
+- New AI provider integrations
+- Enhanced file type support
+- UI/UX improvements
+- Performance optimizations
+- Documentation updates
 
-### Deployment Issues
+## 📜 **License**
 
-1. **Verify build succeeds locally**
-2. **Check environment variables** in Cloudflare dashboards
-3. **Review logs** in Cloudflare Workers/Pages dashboards
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🎯 **Next Steps**
+## 🙏 **Acknowledgments**
 
-1. **Explore the code**: Start with `ui/src/App.tsx` and `server/src/index.ts`
-2. **Customize the UI**: Modify components and styling
-3. **Add features**: Build your app logic in both frontend and backend
-4. **Deploy**: Push to git for automatic deployment
+- **OpenRouter**: For providing access to multiple AI models
+- **OpenAI**: For powerful language and image models
+- **Anthropic**: For Claude's exceptional reasoning
+- **ShadCN/UI**: For beautiful, accessible components
+- **Cloudflare**: For edge computing and storage
 
 ---
 
-**Happy coding!** 🚀
+**Start building with AI today!** 🚀
 
-Need help? Check the detailed documentation in each workspace (`server/README.md`, `ui/README.md`) or visit the [community discussions](https://github.com/VoloBuilds/create-volo-app/discussions). 
+Whether you're a developer exploring AI integration, a researcher analyzing data, or someone who just wants to chat with the best AI models available - Volo Chat provides the tools and flexibility you need. 

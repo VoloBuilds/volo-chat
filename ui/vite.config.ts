@@ -13,7 +13,7 @@ const parseCliArgs = () => {
   
   return {
     port: portIndex !== -1 ? parseInt(args[portIndex + 1]) : 5173,
-    apiUrl: apiUrlIndex !== -1 ? args[apiUrlIndex + 1] : 'http://localhost:5500',
+    apiUrl: apiUrlIndex !== -1 ? args[apiUrlIndex + 1] : null, // Let serverComm.ts handle the default
     firebaseAuthPort: firebaseAuthPortIndex !== -1 ? args[firebaseAuthPortIndex + 1] : '5503',
     useFirebaseEmulator: useFirebaseEmulatorIndex !== -1 ? args[useFirebaseEmulatorIndex + 1] : 'false'
   };
@@ -28,7 +28,7 @@ export default defineConfig({
     port: port
   },
   define: {
-    'import.meta.env.VITE_API_URL': `"${apiUrl}"`,
+    ...(apiUrl && { 'import.meta.env.VITE_API_URL': `"${apiUrl}"` }), // Only define if explicitly set
     'import.meta.env.VITE_FIREBASE_AUTH_EMULATOR_PORT': `"${firebaseAuthPort}"`,
     'import.meta.env.VITE_USE_FIREBASE_EMULATOR': `"${useFirebaseEmulator}"`
   },

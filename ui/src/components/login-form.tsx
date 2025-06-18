@@ -62,11 +62,9 @@ export function LoginForm() {
         // Handle upgrade errors
         if (err.code === 'auth/email-already-in-use') {
           setError("An account with this email already exists. Please sign in instead.")
-        } else if (err.code === 'auth/credential-already-in-use') {
-          setError("This account is already linked. Please sign in instead.")
-        } else {
-          setError(`Failed to create account: ${err.message}`)
-        }
+              } else {
+        setError(`Failed to create account: ${err.message}`)
+      }
       } else if (isSignInMode) {
         setError("Failed to sign in. Please check your credentials.")
         console.error('Sign in error:', err)
@@ -97,17 +95,33 @@ export function LoginForm() {
         console.log('Anonymous user upgraded with Google account')
         navigate('/chat')
       } else {
-        // Normal Google sign in
+        // Normal Google sign in - this handles both sign-in and registration automatically
         await signInWithPopup(auth, googleProvider)
         navigate('/chat')
       }
     } catch (err: any) {
-      if (err.code === 'auth/credential-already-in-use') {
-        setError("This Google account is already in use. Please try a different account.")
+      // Handle specific authentication errors
+      if (err.code === 'auth/account-exists-with-different-credential') {
+        // This occurs when an account already exists with a different sign-in method
+        setError("An account with this email already exists using a different sign-in method. Please try signing in with your original method.")
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        // User closed the popup before completing sign-in
+        setError("Sign-in was cancelled. Please try again.")
+      } else if (err.code === 'auth/popup-blocked') {
+        // Popup was blocked by browser
+        setError("Popup was blocked. Please allow popups for this site and try again.")
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        // Multiple popup requests, only the latest one is processed
+        console.log('Previous popup request cancelled')
+        return // Don't show error for this case
+      } else if (err.code === 'auth/network-request-failed') {
+        // Network issue
+        setError("Network error. Please check your connection and try again.")
       } else {
-        setError("Failed to sign in with Google.")
+        // Generic error
+        setError("Failed to sign in with Google. Please try again.")
       }
-      console.error(err)
+      console.error('Google sign-in error:', err)
     }
   }
 

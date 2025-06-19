@@ -1,58 +1,33 @@
 # Volo Chat
 
-A powerful AI chat application that brings together multiple AI providers and models in one unified interface. Chat with Claude, GPT-4, Gemini, DeepSeek, and generate images with GPT-Image-1 - all while maintaining full control over your data and API keys.
+A sleek and feature-rich open source version of T3 Chat built for the T3 Chat Cloneathon competition.
 
-## 🎯 **What is Volo Chat?**
+## 💬 **What is Volo Chat?**
 
-Volo Chat is a full-stack AI chat application that provides:
-
-- **Multi-Provider AI Support**: Chat with models from OpenAI, Anthropic, Google, DeepSeek, and more through OpenRouter
-- **Image Generation**: Create images with OpenAI's GPT Image model
-- **File Attachments**: Upload and analyze documents, images, PDFs, and code files
-- **Chat Sharing**: Share conversations with public links that others can import
-- **Chat Branching**: Create alternative conversation paths from any message
-- **BYOK (Bring Your Own Key)**: Use your own API keys for cost control and privacy
-
+Volo Chat is a full-stack AI chat application that provides a unified interface for multiple AI providers and models. Chat with Claude, GPT-4, Gemini, DeepSeek, and generate images with OpenAI's GPT-Image-1 - all while maintaining full control over your data and API keys.
 
 ## 🚀 **Key Features**
 
-### 🤖 **Multiple AI Providers**
-- **OpenRouter Integration**: Access 100+ models from various providers
-- **Direct OpenAI Integration**: Optimized image generation with DALL-E
-- **Smart Model Selection**: Automatic recommendations for your use case
-- **Real-time Streaming**: Fast, responsive conversations
-
-### 📎 **Advanced File Support**
-- **Image Analysis**: Upload images for AI analysis and discussion
-- **Document Processing**: PDF, Word, text, and code file analysis
-- **Multiple Formats**: Support for JSON, CSV, Markdown, and more
-- **Drag & Drop**: Easy file attachment with progress tracking
-
-### 🔗 **Chat Management**
-- **Share Conversations**: Generate public links to share interesting chats
-- **Import Shared Chats**: Discover and import conversations from others
-- **Branch Conversations**: Create alternative paths from any message point
-- **Organized Sidebar**: Chronological chat grouping with search
-
-### 🔐 **Privacy & Control**
-- **Your API Keys**: Use your own keys for complete control
-- **Local Development**: Full offline development environment
-- **Anonymous Users**: No account required to start
-- **Firebase Auth**: Secure authentication when ready
+- **Streaming output** - Real-time responses from AI models
+- **Chat branching** - Create alternative conversation paths from any message (great UX)
+- **Message retries** - Easily retry failed or unsatisfactory responses  
+- **File attachments** - Upload and analyze documents, images, PDFs, and code files
+- **Chat sharing** - Share conversations with public links that others can import
+- **Bring Your Own Key (BYOK)** - Secure implementation for OpenRouter + OpenAI keys
+- **Chat management** - Pin, delete, rename, and organize chats
+- **Custom instructions** - Set personalized AI behavior
+- **Markdown rendering** - Rich text display with copy buttons for messages/code blocks
+- **Responsive design** - Works well on mobile and desktop
 
 ## 🛠️ **Tech Stack**
 
-**Frontend:**
-- ⚛️ React + TypeScript + Vite
-- 🎨 Tailwind CSS + ShadCN/UI
-- 🔐 Firebase Authentication
-- 🗂️ Zustand State Management
-
-**Backend:**
-- 🔥 Hono API (Node.js/Cloudflare Workers)
-- 🗄️ PostgreSQL + Drizzle ORM
-- 🪣 Cloudflare R2 File Storage
-- 🔑 Multi-provider AI integration
+- **Frontend**: React (Vite) + Tailwind CSS + ShadCN components
+- **Backend**: Hono API configured for Cloudflare Workers
+- **Authentication**: Firebase Auth (enabling smooth Google Sign-in)
+- **Database**: PostgreSQL with Drizzle ORM
+- **AI Models**: OpenRouter for text models, OpenAI for image generation
+- **File Storage**: Cloudflare R2 bucket for uploaded files
+- **Package Manager**: pnpm
 
 ## 📋 **Quick Start**
 
@@ -60,106 +35,106 @@ Volo Chat is a full-stack AI chat application that provides:
 - Node.js 18+ and pnpm
 - Git
 
-### Installation
+### Setup
 
 1. **Clone and Install**
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/VoloBuilds/volo-chat
    cd volo-chat
    pnpm install
    ```
 
-2. **Start Development Environment**
+2. **Configure Firebase**
+   - Update `ui/src/lib/firebase-config.json` with your Firebase project details
+   - Or keep the default config to use the demo Firebase project
+   - Alternatively, use the Firebase emulator to run locally without a Firebase account
+
+3. **Configure Backend**
+   - Copy `server/platforms/cloudflare/wrangler.toml.template` to `server/wrangler.toml`
+   - Update the configuration with your values:
+
+   ```toml
+   name = "your-worker-name"
+   main = "src/index.ts"
+   compatibility_date = "2024-09-23"
+   compatibility_flags = [ "nodejs_compat" ]
+
+   [vars]
+   NODE_ENV = "production"
+   FIREBASE_PROJECT_ID = "your-firebase-project-id"
+   DATABASE_URL = "postgresql://your-neon-db-url"
+   OPENROUTER_API_KEY = "your-openrouter-key"
+   OPENAI_API_KEY = "your-openai-key"  # Optional, for image generation
+   API_KEY_ENCRYPTION_SECRET = "your-32-char-secret"
+
+   [[r2_buckets]]
+   bucket_name = "your-r2-bucket-name"
+   binding = "R2_BUCKET"
+   ```
+
+4. **Set Up Database Schema**
+   ```bash
+   cd server
+   pnpm db:push
+   ```
+
+5. **Start Development**
    ```bash
    pnpm dev
    ```
 
-   This starts:
-   - **Frontend**: http://localhost:5173
-   - **Backend API**: http://localhost:8787
-   - **PostgreSQL**: Embedded database
-   - **Firebase Auth**: Local emulator
+   This starts both the frontend and backend on available ports (default 5500 and 5501)
 
-3. **Start Chatting**
+6. **Start Chatting**
    - Open the frontend URL
-   - Sign in with any email/password (local mode)
-   - Start a conversation with the default models
+   - Sign in with your Google account (or email/password)
+   - Optionally, add your API keys in Settings → API Keys
+   - Start a conversation
 
-## 🔧 **Configuration**
+## 🔧 **Configuration Details**
 
-### Environment Variables
+### Required Services
 
-Create `server/.env` with your API keys:
+**Database**: PostgreSQL (Neon recommended)
+- Any PostgreSQL database will work
+- Get free database at [neon.tech](https://neon.tech)
 
-```bash
-# Optional: OpenRouter API key for text models
-OPENROUTER_API_KEY=your_openrouter_key
+**Storage**: Cloudflare R2
+- Required for file uploads and attachments
+- Set up R2 bucket in Cloudflare dashboard
+- **Note**: Uses R2 API directly (not S3-compatible storage atm)
 
-# Optional: OpenAI API key for image generation
-OPENAI_API_KEY=your_openai_key
+**Authentication**: Firebase Auth
+- Create project at [firebase.google.com](https://firebase.google.com)
+- Enable Google Sign-in provider
+- Update `firebase-config.json` with your project details
 
-# Database (automatically configured for local development)
-DATABASE_URL=postgresql://...
+### API Keys
 
-# Firebase (automatically configured for local development)
-FIREBASE_PROJECT_ID=your_project_id
-```
+Add your keys in the app at Settings → API Keys:
 
-### Adding Your Own API Keys
+- **OpenRouter**: For access to Claude, GPT-4, Gemini, DeepSeek, and 100+ other models
+- **OpenAI**: For GPT-Image-1 image generation (optional)
 
-1. **In the App**: Go to Settings → API Keys
-2. **Add Keys**: Enter your OpenRouter and/or OpenAI keys
-3. **Start Chatting**: Your keys enable access to all models
+### Security
 
-### Production Deployment
-
-For production deployment to Cloudflare:
-
-1. **Database**: Set up Neon, Supabase, or custom PostgreSQL
-2. **Storage**: Configure Cloudflare R2 bucket
-3. **Auth**: Set up production Firebase project
-4. **Deploy**: Use Cloudflare Pages + Workers
-
-See deployment docs in `server/README.md` for detailed instructions.
+- API keys are encrypted using `API_KEY_ENCRYPTION_SECRET`
+- Use a 32-character random string for the encryption secret
+- Different secret = different encrypted values (not transferable)
 
 ## 🤖 **Supported Models**
 
-### Text Generation
-- **Anthropic**: Claude 4, Claude 3.5 Sonnet
+### Text Generation (via OpenRouter)
+- **Anthropic**: Claude 3.5 Sonnet, Claude 3 Opus
 - **OpenAI**: GPT-4o, GPT-4o-mini, o1 series
 - **Google**: Gemini 2.5 Pro, Gemini 2.5 Flash
 - **DeepSeek**: R1 series, V3 models
-- **100+ Others**: Via OpenRouter integration
+- **100+ Others**: Full OpenRouter catalog
 
-### Image Generation
-- **OpenAI DALL-E 3**: High-quality image generation
-- **GPT Image 1**: Latest OpenAI image model with streaming
-
-### File Analysis
-- **Images**: JPEG, PNG, GIF, WebP analysis
-- **Documents**: PDF, Word, text file processing
-- **Code**: JSON, CSV, code file analysis
-- **Multimodal**: Combined text and image understanding
+### Image Generation (via OpenAI)
+- **GPT-Image-1**: High-quality image generation
 
 ## 🎛️ **Usage Guide**
-
-### Basic Chat
-1. Select a model from the dropdown
-2. Type your message
-3. Attach files if needed
-4. Send and watch the streaming response
-
-### File Attachments
-- **Drag & Drop**: Files onto the chat input
-- **Click to Upload**: Use the attachment button
-- **Multiple Files**: Upload up to 5 files per message
-- **Smart Model Selection**: Auto-switch to multimodal models when needed
-
-### Chat Sharing
-1. Open chat actions menu (3 dots)
-2. Click "Share Chat"
-3. Copy the generated link
-4. Others can view and import the conversation
 
 ### Chat Branching
 1. Hover over any message
@@ -167,11 +142,17 @@ See deployment docs in `server/README.md` for detailed instructions.
 3. Continue the conversation from that point
 4. Original chat remains unchanged
 
-### Image Generation
-1. Select an image generation model (DALL-E 3, GPT Image 1)
-2. Describe what you want to create
-3. Watch real-time generation progress
-4. Download or share the result
+### Chat Sharing
+1. Open chat actions menu (3 dots)
+2. Click "Share Chat"
+3. Copy the generated link
+4. Others can view and import the conversation
+
+### File Attachments
+- Drag & drop files onto chat input
+- Supports images, PDFs, documents, code files
+- Up to 5 files per message
+- Auto-switches to multimodal models when needed
 
 ## 📁 **Project Structure**
 
@@ -204,98 +185,36 @@ volo-chat/
 └── scripts/               # Development utilities
 ```
 
-## 🔌 **API Integration**
-
-### Adding New AI Providers
-
-1. **Create Provider**: Extend `BaseAIProvider` class
-2. **Update Manager**: Add to `AIProviderManager`
-3. **Add Models**: Define model configurations
-4. **Test Integration**: Verify streaming and responses
-
-### Custom Features
-
-The modular architecture makes it easy to add:
-- New file type support
-- Additional AI providers
-- Custom chat features
-- Enhanced UI components
-
-## 🛡️ **Security & Privacy**
-
-- **API Key Security**: Your keys are encrypted and stored securely
-- **Anonymous Mode**: No data collection without account
-- **Local Development**: Everything runs locally by default
-- **CORS Protection**: Proper API security measures
-- **Rate Limiting**: Prevents abuse and overuse
-
 ## 🚨 **Troubleshooting**
-
-### Common Issues
 
 **Models not loading:**
 - Add OpenRouter API key in Settings
-- Check network connectivity
-- Verify API key validity
+- Check API key validity at [openrouter.ai](https://openrouter.ai)
 
 **File uploads failing:**
-- Check file size (10MB limit)
-- Verify supported file types
+- Verify R2 bucket is configured in `wrangler.toml`
+- Check file size limits (10MB max)
 - Ensure stable internet connection
 
-**Chat sharing not working:**
-- Confirm authentication
-- Check if chat has messages
-- Verify network connectivity
+**Database connection issues:**
+- Verify `DATABASE_URL` in `wrangler.toml`
+- Ensure database schema is initialized: `cd server && pnpm db:push`
 
-**Image generation failing:**
-- Add OpenAI API key in Settings
-- Check API quota and billing
-- Try different prompts if content policy issues
-
-### Development Issues
-
-```bash
-# Clear cache and reinstall
-rm -rf node_modules
-pnpm install
-
-# Reset database
-cd server && pnpm db:push
-
-# Check logs
-pnpm dev --verbose
-```
+**Authentication problems:**
+- Check Firebase configuration in `firebase-config.json`
+- Verify `FIREBASE_PROJECT_ID` matches in both files
 
 ## 🤝 **Contributing**
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+This project was built using "document-driven development" with Cursor agents - check out the [development timelapse](https://youtu.be/tEbCd3uRv0o) showing how 5k+ lines of code were written in 2-3 hours!
 
-Areas we'd love help with:
-- New AI provider integrations
-- Enhanced file type support
-- UI/UX improvements
-- Performance optimizations
-- Documentation updates
+Areas for contribution:
+- Web search
+- Ability to modify generated images
+- Resumable streams
+- Code/markdown canvas (editable)
+- MCPs & tool integrations
 
 ## 📜 **License**
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 **Acknowledgments**
-
-- **OpenRouter**: For providing access to multiple AI models
-- **OpenAI**: For powerful language and image models
-- **Anthropic**: For Claude's exceptional reasoning
-- **ShadCN/UI**: For beautiful, accessible components
-- **Cloudflare**: For edge computing and storage
-
----
-
-**Start building with AI today!** 🚀
-
-Whether you're a developer exploring AI integration, a researcher analyzing data, or someone who just wants to chat with the best AI models available - Volo Chat provides the tools and flexibility you need. 
+MIT License - see LICENSE file for details.

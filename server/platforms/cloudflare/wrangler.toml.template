@@ -1,13 +1,16 @@
-name = "{{WORKER_NAME}}"
-main = "src/api.ts"
+name = "your-worker-name"
+main = "src/index.ts"
 compatibility_date = "2024-09-23"
-compatibility_flags = ["nodejs_compat"]
+compatibility_flags = [ "nodejs_compat" ]
 
 [vars]
-FIREBASE_PROJECT_ID = "{{FIREBASE_PROJECT_ID}}"
-DATABASE_URL = "{{DATABASE_URL}}"
+NODE_ENV = "production"
+FIREBASE_PROJECT_ID = "your-firebase-project-id"
+DATABASE_URL = "postgresql://your-neon-db-url"
+OPENROUTER_API_KEY = "your-openrouter-key"
+OPENAI_API_KEY = "your-openai-key"  # Optional, for image generation
+API_KEY_ENCRYPTION_SECRET = "your-32-char-secret"
 
-# Development tools configuration
-[dev]
-port = 8787
-local_protocol = "http" 
+[[r2_buckets]]
+bucket_name = "your-r2-bucket-name"
+binding = "R2_BUCKET"

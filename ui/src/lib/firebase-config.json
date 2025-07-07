@@ -1,9 +1,9 @@
 {
-  "apiKey": "AIzaSyAirRIfNbkKtCW6LLbwMkTaLrdTQ0LR73w",
-  "authDomain": "volo-sample103.firebaseapp.com",
-  "projectId": "volo-sample103",
-  "storageBucket": "volo-sample103.appspot.com",
-  "messagingSenderId": "722655504955",
-  "appId": "1:722655504955:web:1fd417641b400db5018a1e",
-  "measurementId": "G-PLACEHOLDER"
+  "apiKey": "AIzaSyAaxBzz-bDgIwupmkbmmhxQLhhdwodo34c",
+  "authDomain": "volo-chat-2.firebaseapp.com",
+  "projectId": "volo-chat-2",
+  "storageBucket": "volo-chat-2.firebasestorage.app",
+  "messagingSenderId": "165357642072",
+  "appId": "1:165357642072:web:5b0ca777c78d4d9d05052d",
+  "measurementId": "G-X9GM7818G7"
 }
